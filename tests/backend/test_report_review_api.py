@@ -253,6 +253,8 @@ def test_t06_current_router_includes_approval_and_reanalysis_without_materialize
         if "report-review" in route.path or "/reports/{report_version_id}" in route.path
     }
     assert paths == {
+        "/api/projects/{project_id}/anxin-board/reports/{report_version_id}/git-metrics",
+        "/api/projects/{project_id}/anxin-board/reports/{report_version_id}/module-narrative",
         "/api/projects/{project_id}/anxin-board/reports/{report_version_id}/narrative",
         "/api/projects/{project_id}/report-review/current",
         "/api/projects/{project_id}/reports/{report_version_id}/approval",
@@ -262,6 +264,7 @@ def test_t06_current_router_includes_approval_and_reanalysis_without_materialize
         "/api/projects/{project_id}/reports/{report_version_id}/contradiction/send-authorization-preview",
         "/api/projects/{project_id}/reports/{report_version_id}/reanalysis",
         "/api/projects/{project_id}/reports/{report_version_id}/reanalysis/authorize-send",
+        "/api/projects/{project_id}/reports/{report_version_id}/reanalysis/cancel",
         "/api/projects/{project_id}/reports/{report_version_id}/reanalysis/execute",
         "/api/projects/{project_id}/reports/{report_version_id}/reanalysis/finalize-existing",
         "/api/projects/{project_id}/reports/{report_version_id}/reanalysis/prepare",
