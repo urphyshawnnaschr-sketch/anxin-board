@@ -1,0 +1,132 @@
+name: Offline product CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: offline-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: windows-2025
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Isolate temporary and product data outside Git ancestry
+        shell: pwsh
+        run: |
+          $root = Join-Path ($env:SystemDrive + '\') ('AnxinBoard-ci-' + [guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $root | Out-Null
+          $ancestor = [IO.DirectoryInfo]$root
+          while ($null -ne $ancestor) {
+            if (Test-Path -LiteralPath (Join-Path $ancestor.FullName '.git')) { throw 'CI isolation root has a Git ancestor' }
+            $ancestor = $ancestor.Parent
+          }
+          $temp = Join-Path $root 'tmp'
+          $localApp = Join-Path $root 'localapp'
+          New-Item -ItemType Directory -Path $temp, $localApp | Out-Null
+          "ANXINBOARD_CI_ROOT=$root" >> $env:GITHUB_ENV
+          "TEMP=$temp" >> $env:GITHUB_ENV
+          "TMP=$temp" >> $env:GITHUB_ENV
+          "TMPDIR=$temp" >> $env:GITHUB_ENV
+          "LOCALAPPDATA=$localApp" >> $env:GITHUB_ENV
+          "ANXINBOARD_DB_PATH=$(Join-Path $localApp 'AnxinBoard\anxinboard.db')" >> $env:GITHUB_ENV
+          "ANXINBOARD_PRD_ROOT=$(Join-Path $temp 'prd')" >> $env:GITHUB_ENV
+          "ANXINBOARD_PROJECTS_ROOT=$(Join-Path $temp 'projects')" >> $env:GITHUB_ENV
+          "ANXINBOARD_STATE_PATH=$(Join-Path $root 'dev-processes.json')" >> $env:GITHUB_ENV
+          "PLAYWRIGHT_BROWSERS_PATH=$(Join-Path $root 'browsers')" >> $env:GITHUB_ENV
+          "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1" >> $env:GITHUB_ENV
+      - name: Install pinned backend dependencies
+        shell: pwsh
+        run: python -m pip install --disable-pip-version-check -r apps/backend/requirements.txt
+      - name: Run complete offline backend suite
+        shell: pwsh
+        run: |
+          $baseTemp = Join-Path $env:ANXINBOARD_CI_ROOT 'pytest'
+          python -E -X utf8 -m pytest tests/backend -q -ra --basetemp="$baseTemp" --junitxml=backend-junit.xml
+      - name: Preserve backend test result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-result
+          path: backend-junit.xml
+
+  frontend:
+    runs-on: windows-2025
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Isolate temporary and product data outside Git ancestry
+        shell: pwsh
+        run: |
+          $root = Join-Path ($env:SystemDrive + '\') ('AnxinBoard-ci-' + [guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $root | Out-Null
+          $ancestor = [IO.DirectoryInfo]$root
+          while ($null -ne $ancestor) {
+            if (Test-Path -LiteralPath (Join-Path $ancestor.FullName '.git')) { throw 'CI isolation root has a Git ancestor' }
+            $ancestor = $ancestor.Parent
+          }
+          $temp = Join-Path $root 'tmp'
+          $localApp = Join-Path $root 'localapp'
+          New-Item -ItemType Directory -Path $temp, $localApp | Out-Null
+          "ANXINBOARD_CI_ROOT=$root" >> $env:GITHUB_ENV
+          "TEMP=$temp" >> $env:GITHUB_ENV
+          "TMP=$temp" >> $env:GITHUB_ENV
+          "TMPDIR=$temp" >> $env:GITHUB_ENV
+          "LOCALAPPDATA=$localApp" >> $env:GITHUB_ENV
+          "ANXINBOARD_DB_PATH=$(Join-Path $localApp 'AnxinBoard\anxinboard.db')" >> $env:GITHUB_ENV
+          "ANXINBOARD_PRD_ROOT=$(Join-Path $temp 'prd')" >> $env:GITHUB_ENV
+          "ANXINBOARD_PROJECTS_ROOT=$(Join-Path $temp 'projects')" >> $env:GITHUB_ENV
+          "ANXINBOARD_STATE_PATH=$(Join-Path $root 'dev-processes.json')" >> $env:GITHUB_ENV
+          "PLAYWRIGHT_BROWSERS_PATH=$(Join-Path $root 'browsers')" >> $env:GITHUB_ENV
+          "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1" >> $env:GITHUB_ENV
+      - name: Install locked frontend dependencies
+        working-directory: apps/frontend
+        run: npm ci
+      - name: Run all Node tests
+        shell: pwsh
+        working-directory: apps/frontend
+        run: |
+          $testFiles = @(Get-ChildItem -LiteralPath src -Recurse -Filter *.test.mjs -File | Sort-Object FullName | ForEach-Object FullName)
+          if ($testFiles.Count -eq 0) { throw 'No Node test files found' }
+          node --test @testFiles
+      - name: Build frontend
+        working-directory: apps/frontend
+        run: npm run build
+      - name: Install Chromium
+        working-directory: apps/frontend
+        run: npx --no-install playwright install chromium
+      - name: Allocate isolated frontend and unused backend proxy ports
+        shell: pwsh
+        run: |
+          $front = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
+          $back = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
+          try {
+            $front.Start(); $back.Start()
+            "ANXINBOARD_E2E_PORT=$($front.LocalEndpoint.Port)" >> $env:GITHUB_ENV
+            "ANXINBOARD_DEV_BACKEND_PORT=$($back.LocalEndpoint.Port)" >> $env:GITHUB_ENV
+          } finally { $front.Stop(); $back.Stop() }
+      - name: Run complete synthetic browser suite
+        working-directory: apps/frontend
+        run: npx --no-install playwright test
+      - name: Preserve browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-evidence
+          path: |
+            apps/frontend/playwright-report/
+            apps/frontend/test-results/

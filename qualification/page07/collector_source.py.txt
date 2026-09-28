@@ -1,0 +1,278 @@
+"""Private synthetic experiment. No Product registry, ledger, DB or approval writes."""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import sys
+import subprocess
+from dataclasses import asdict
+from fastapi import HTTPException
+
+REPO = Path(__file__).resolve().parents[3] / "work/rd-agent-brownfield-20260923"
+sys.path.insert(0, str(REPO / "apps/backend"))
+from app import context_redaction, report_task_subjects, model_qualification_registry
+from app.ai_contracts import AI_CONTRACT_SCHEMA_VERSION
+from app import model_gateway as gateway
+from app import page07_model_preparation as preparation
+from app.ai_contract_validation import _validate_result_contract
+from app.model_qualification_harness import REPEAT_REPRESENTATIVE_SAMPLE_IDS
+from app.model_provider_contract import ProviderReceipt, ProviderCredentialRequest
+
+
+def canonical(value):
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+
+def digest(value):
+    return hashlib.sha256(canonical(value)).hexdigest()
+
+def write_new(path, value):
+    path = Path(path)
+    if path.parent.is_symlink() or path.is_symlink():
+        raise ValueError("UNSAFE_OUTPUT")
+    with path.open("xb") as f:
+        f.write(canonical(value))
+        f.flush()
+        os.fsync(f.fileno())
+
+def references(value):
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key == "evidence_ids":
+                yield from item
+            else:
+                yield from references(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from references(item)
+
+def source_identity():
+    head = subprocess.check_output(["git", "-c", "safe.directory="+str(REPO), "-C", str(REPO), "rev-parse", "HEAD"], text=True).strip()
+    files = {str(p.relative_to(REPO)).replace(chr(92),"/"):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((REPO/"apps/backend/app").glob("*.py"))}
+    qualification_files = {str(p.relative_to(REPO)).replace(chr(92),"/"):hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in sorted((REPO/"qualification").rglob("*")) if p.is_file() and p.suffix in {'.py','.json','.md'}}
+    return {"source_commit":head,"backend_source_hash":digest(files),
+        "qualification_source_hash":digest(qualification_files),
+        "collector_source_hash":hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+
+def require_source(expected):
+    import re
+    if not isinstance(expected, str) or not re.fullmatch(r'[0-9a-f]{40}', expected):
+        raise ValueError('SOURCE_COMMIT_REQUIRED')
+    prefix = ['git', '-c', 'safe.directory='+str(REPO), '-C', str(REPO)]
+    head = subprocess.check_output(prefix+['rev-parse', 'HEAD'], text=True).strip()
+    if head != expected:
+        raise ValueError('SOURCE_COMMIT_MISMATCH')
+    dirty = subprocess.check_output(prefix+['status', '--porcelain', '--untracked-files=all', '--', 'apps/backend', 'qualification'], text=True).strip()
+    if dirty:
+        raise ValueError('SOURCE_NOT_CLEAN')
+
+
+def current_capability():
+    from app.deepseek_extended_provider_adapter import build_deepseek_extended_provider_adapter
+    return build_deepseek_extended_provider_adapter().get_capability(task_type="daily_report_regenerate",output_schema_version="daily-report-regenerate/1.0")
+
+def load_sidecar():
+    return json.loads((REPO / 'qualification/page07/samples.json').read_text(encoding='utf-8'))
+
+
+def prepare(sidecar, capability):
+    if sidecar.get("synthetic_only") is not True or len(sidecar["samples"]) != 12:
+        raise ValueError("SYNTHETIC_SCOPE_INVALID")
+    base = json.loads((REPO / "qualification/base_samples_v1.json").read_text(encoding="utf-8"))
+    if sidecar["base_sample_manifest_hash"] != digest(base):
+        raise ValueError("BASE_DRIFT")
+    budget = preparation._budget_record(capability)
+    requests = {}
+    for ordinal, (sample, original) in enumerate(zip(sidecar["samples"], base["samples"]), 1):
+        sid = sample["sample_id"]
+        if sid != original["sample_id"] or sample["base_sample_hash"] != digest(original):
+            raise ValueError("SAMPLE_DRIFT")
+        correction = sample["human_correction"]
+        # These local positive IDs denote synthetic fixtures only, never Product rows.
+        identity = digest({"synthetic": True, "sample": sample})
+        req = {"reanalysis_request_id": ordinal, "requested_by": "SYNTHETIC FIXTURE AUTHOR", "requested_at": "2026-09-27T00:00:00Z", "requested_timezone": "UTC"}
+        for key, value in {"error_location":"original_report", "corrected_truth":correction["content"], "correction_basis":"Frozen synthetic evidence; unsupported requested claims must be rejected.", "correction_source":correction["evidence_id"]}.items():
+            req[key] = value
+            req[key+"_hash"] = hashlib.sha256(value.encode("utf-8")).hexdigest()
+        req["request_hash"] = digest(req)
+        subject = {"schema_version":"page07_daily_report_regenerate_subject_v1", "task_type":"daily_report_regenerate", "project_id":ordinal,
+            "source_report":{"report_version_id":ordinal,"report_content_hash":digest(sample["original_report"]),"model_execution_result_id":ordinal,"execution_result_hash":identity,"model_call_id":ordinal,"call_identity_hash":identity},
+            "reanalysis_request":req,"replacement_task":{"replacement_task_id":ordinal,"replacement_local_task_id":"synthetic-"+sid,"replacement_task_identity_hash":identity},
+            "evidence_snapshot":{"evidence_snapshot_id":ordinal,"evidence_snapshot_hash":digest(sample["evidence"])}}
+        subject.update(redaction_policy_id=context_redaction.POLICY_ID,redaction_policy_hash=context_redaction.REDACTION_POLICY_HASH)
+        closed_subject = report_task_subjects._subject_result(subject_schema_version=subject["schema_version"],task_type="daily_report_regenerate",raw_subject=subject)
+        if closed_subject["redaction_match_count"] != 0: raise ValueError("SYNTHETIC_REDACTION_CHANGED")
+        payload = canonical({"synthetic_only":True,"warning":"All IDs and SHA values are synthetic, not Product/Git facts.","ProjectProfile":{"planned_modules":[{"name":name} for name in sample["expected_module_names"]]},"base_facts":{k:original[k] for k in ("sample_id","language_family","prd","baseline_commit","delta_commit","git_facts")},"original_report":sample["original_report"],"evidence":sample["evidence"],"human_correction":correction})
+        manifest = {"model_call_id":ordinal,"call_identity_hash":identity,"provider":capability.provider,"model_id":capability.model_id,"model_version":capability.model_version,"task_type":"daily_report_regenerate","output_schema_version":"daily-report-regenerate/1.0","framed_payload_hash":hashlib.sha256(payload).hexdigest(),"budget_profile_hash":digest(budget)}
+        plan = gateway._build_regenerate_gateway_request_plan(manifest=manifest,payload=payload,budget_record=budget,task_subject=closed_subject)
+        if plan["conservative_local_request_upper_bound"] > capability.context_window_tokens or plan["reserved_output_tokens"] > capability.max_output_tokens:
+            raise ValueError("BUDGET_EXCEEDED")
+        wire = gateway._provider_request_shape(manifest=manifest,messages=plan["messages"],reserved_output_tokens=plan["reserved_output_tokens"])
+        requests[sid] = {"wire":wire,"plan":plan,"wire_hash":digest(wire),"request_hash":plan["request_envelope_hash"],"allowed_evidence_ids":[e["evidence_id"] for e in sample["evidence"]]+[correction["evidence_id"]]}
+    slots = []
+    for sid in requests:
+        slots.append({"slot_id":"base-"+sid,"sample_id":sid,"phase":"base",**{k:requests[sid][k] for k in ("wire_hash","request_hash","allowed_evidence_ids")}})
+    for sid in REPEAT_REPRESENTATIVE_SAMPLE_IDS:
+        for n in range(1,4):
+            slots.append({"slot_id":f"repeat-{sid}-{n}","sample_id":sid,"phase":"repeat",**{k:requests[sid][k] for k in ("wire_hash","request_hash","allowed_evidence_ids")}})
+    manifest = {"schema_version":"private_regenerate_collection_v1","synthetic_only":True,"source_identity":source_identity(),"capability":asdict(capability),"sidecar_hash":digest(sidecar),"provider":capability.provider,"model_id":capability.model_id,"model_version":capability.model_version,"budget":budget,"slots":slots,"requests":requests,"automatic_admission":False}
+    task_identity = dict(model_qualification_registry.APPROVED_TASK_IDENTITIES['daily_report_regenerate'])
+    plan_identity = next(iter(requests.values()))['plan']
+    if task_identity['prompt_version'] != plan_identity['prompt_version']:
+        raise ValueError('QUALIFICATION_PROMPT_IDENTITY_MISMATCH')
+    manifest['qualification_identity'] = {**task_identity,
+        'provider':capability.provider, 'model_id':capability.model_id, 'model_version':capability.model_version,
+        'ai_contract_schema_version':AI_CONTRACT_SCHEMA_VERSION,
+        'prompt_contract_hash':plan_identity['prompt_contract_hash'],
+        'sampling_parameters_hash':plan_identity['sampling_parameters_hash']}
+    manifest['budget_totals'] = {
+        'max_provider_calls':len(slots),
+        'provider_request_utf8_bytes':sum(len(canonical(requests[s['sample_id']]['wire'])) for s in slots),
+        'reserved_output_tokens':sum(requests[s['sample_id']]['plan']['reserved_output_tokens'] for s in slots),
+        'conservative_request_upper_bound_sum':sum(requests[s['sample_id']]['plan']['conservative_local_request_upper_bound'] for s in slots),
+        'max_single_request_upper_bound':max(r['plan']['conservative_local_request_upper_bound'] for r in requests.values()),
+        'currency_cost':None, 'currency_cost_note':'No price is inferred; limits are calls and token-budget units.'}
+    manifest["manifest_hash"] = digest(manifest)
+    return manifest
+
+_ISSUE_CODES = frozenset({"AI_ENUM_INVALID","AI_EVIDENCE_REQUIRED","AI_EVIDENCE_UNKNOWN","AI_EXTRA_FIELD","AI_REQUIRED_FIELD_MISSING","AI_SCHEMA_INVALID","AI_SCOPE_INVALID","AI_SOURCE_TYPE_INVALID","AI_STAGE_INVALID","AI_TASK_RESULT_MISMATCH","AI_RESOURCE_ARRAY_LIMIT_EXCEEDED","AI_RESOURCE_DEPTH_EXCEEDED","AI_RESOURCE_MAPPING_LIMIT_EXCEEDED","AI_RESOURCE_NODE_LIMIT_EXCEEDED","AI_RESOURCE_STRING_LIMIT_EXCEEDED","AI_MAPPING_KEY_INVALID"})
+_PATH_FIELDS = frozenset("result new_report correction_trace plain_summary feature_progress code_change_summary test_evidence risks unknown_items source_warnings feature stage source_type implementation_scope evidence_ids content risk_level reason handled".split())
+
+def contract_diagnostic(issues):
+    import re
+    safe = []
+    for issue in issues[:16]:
+        path = getattr(issue,"path",None)
+        tokens = re.findall(r"\.([A-Za-z_]+)|\[([0-9]{1,4})\]",path) if isinstance(path,str) and len(path)<=240 else []
+        rebuilt = "$"+"".join("."+field if field else "["+index+"]" for field,index in tokens)
+        if not tokens or rebuilt != path or any(field and field not in _PATH_FIELDS for field,index in tokens):
+            path = "$.result"
+        code = getattr(issue,"code",None)
+        safe.append({"code":code if code in _ISSUE_CODES else "VALIDATION_ISSUE_UNCLASSIFIED","path":path})
+    return {"validation_stage":"result_contract","issue_count":min(len(issues),100000),"truncated":len(issues)>16,"issues":safe}
+
+def collect(manifest, directory, send, *, authorization_id="offline-fake-test", diagnose_slot=None):
+    if digest({k:v for k,v in manifest.items() if k != "manifest_hash"}) != manifest["manifest_hash"]:
+        raise ValueError("MANIFEST_DRIFT")
+    sidecar = load_sidecar()
+    if len(manifest["slots"]) != 21 or len({s["slot_id"] for s in manifest["slots"]}) != 21:
+        raise ValueError("SLOT_SCOPE_INVALID")
+    if manifest != prepare(sidecar,current_capability()):
+        raise ValueError("CURRENT_FROZEN_SCOPE_DRIFT")
+    slots = manifest["slots"]
+    if diagnose_slot is not None:
+        slots = [slot for slot in slots if slot["slot_id"] == diagnose_slot]
+        if len(slots) != 1: raise ValueError("DIAGNOSTIC_SLOT_INVALID")
+    directory = Path(directory)
+    directory.mkdir(exist_ok=False)
+    # This run-level claim prevents resuming/replaying any ambiguous consumed experiment.
+    write_new(directory/"intent.json", {"manifest_hash":manifest["manifest_hash"],"max_attempts":1 if diagnose_slot is not None else 21,"synthetic_diagnostic_only":diagnose_slot is not None,"qualification_eligible":diagnose_slot is None,"diagnose_slot":diagnose_slot,"authorization_id":authorization_id,"synthetic_only":True,"authorization":"Explicit owner authorized synthetic qualification only; no business report or admission."})
+    outcomes = []
+    response_ids = set()
+    for slot in slots:
+        # A semantic reviewer can stop later requests without discarding the
+        # currently in-flight response. The run directory remains consumed.
+        if (directory / "STOP_AFTER_CURRENT").exists():
+            break
+        request = manifest["requests"][slot["sample_id"]]
+        if digest(request["wire"]) != slot["wire_hash"]:
+            raise ValueError("WIRE_DRIFT")
+        write_new(directory/(slot["slot_id"]+".claim.json"),slot)
+        receipt = {"schema_version":"private_regenerate_receipt_v1","synthetic_diagnostic_only":diagnose_slot is not None,"qualification_eligible":diagnose_slot is None,**{k:slot[k] for k in ("slot_id","sample_id","phase","request_hash","wire_hash")},"status":"unknown","actual_model":None,"provider_response_id":None,"provider_runtime_fingerprint":None,"usage":None,"result":None,"safe_code":"EXECUTION_UNKNOWN","dispatch_attempts":1,"safe_diagnostic":{"validation_stage":"adapter_receipt"}}
+        try:
+            result = send(request["wire"])
+            if not isinstance(result, ProviderReceipt):
+                raise ValueError("INVALID_RECEIPT")
+            receipt["status"] = "rejected"
+            receipt["safe_code"] = "RESPONSE_INVALID"
+            receipt["safe_diagnostic"]={"validation_stage":"receipt_identity"}
+            usage = {k:getattr(result,k) for k in ("prompt_tokens","completion_tokens","total_tokens")}
+            if all(type(v) is int and 0 <= v <= 10**9 for v in usage.values()):
+                receipt["usage"] = usage
+            if result.actual_model != manifest["model_id"] or result.provider != manifest["provider"] or result.finish_reason != "stop":
+                raise ValueError("INVALID_RECEIPT")
+            if any(type(v) is not str or not v.strip() or len(v)>512 for v in (result.provider_response_id,result.provider_runtime_fingerprint)) or result.provider_response_id in response_ids:
+                raise ValueError("INVALID_RECEIPT_IDENTITY")
+            response_ids.add(result.provider_response_id)
+            receipt.update(actual_model=result.actual_model,provider_response_id=result.provider_response_id,provider_runtime_fingerprint=result.provider_runtime_fingerprint)
+            receipt["safe_diagnostic"]={"validation_stage":"result_contract"}
+            issues = _validate_result_contract("daily_report_regenerate",result.result)
+            if issues:
+                receipt["safe_diagnostic"]=contract_diagnostic(issues)
+                raise ValueError("INVALID_RESULT")
+            receipt["safe_diagnostic"]={"validation_stage":"evidence_scope"}
+            unknown_refs = set(references(result.result)) - set(slot["allowed_evidence_ids"])
+            if unknown_refs:
+                receipt["safe_diagnostic"]["unknown_evidence_count"]=min(len(unknown_refs),100000)
+                raise ValueError("INVALID_RESULT")
+            receipt["safe_diagnostic"]={"validation_stage":"usage"}
+            if receipt["usage"] is None or usage["total_tokens"] != usage["prompt_tokens"]+usage["completion_tokens"]:
+                raise ValueError("INVALID_USAGE")
+            receipt.update(status="succeeded",safe_code=None,result=dict(result.result),safe_diagnostic=None)
+        except HTTPException as exc:
+            code = exc.detail.get("code") if isinstance(exc.detail,dict) else None
+            received = {"DEEPSEEK_TRANSPORT_HTTP_ERROR","DEEPSEEK_TRANSPORT_RESPONSE_TOO_LARGE","DEEPSEEK_TRANSPORT_RESPONSE_INVALID","DEEPSEEK_TRANSPORT_COMPLETION_INCOMPLETE"}
+            presend = {"DEEPSEEK_TRANSPORT_INPUT_INVALID","DEEPSEEK_TRANSPORT_CREDENTIAL_UNAVAILABLE","PROFILE_GENERATION_CREDENTIAL_REQUIRED","PROFILE_GENERATION_CREDENTIAL_UNSUPPORTED","PROFILE_GENERATION_CREDENTIAL_ACCESS_DENIED","PROFILE_GENERATION_CREDENTIAL_READ_FAILED"}
+            if code in received | presend | {"DEEPSEEK_TRANSPORT_NETWORK_ERROR"}:
+                receipt["safe_code"] = code
+                receipt["status"] = "rejected" if code in received else "pre_send_failed" if code in presend else "unknown"
+        except Exception:
+            pass  # fixed safe status only; never serialize exception/body/headers/credentials
+        receipt["response_hash"] = digest(receipt)
+        write_new(directory/(slot["slot_id"]+".receipt.json"),receipt)
+        outcomes.append(receipt)
+        if receipt["status"] != "succeeded":
+            break
+    return outcomes
+
+def require_owner_authorization(value):
+    import re
+    if os.environ.get("ANXINBOARD_OWNER_SYNTHETIC_QUALIFICATION") != "YES" or not re.fullmatch(r"[A-Za-z0-9_-]{8,80}",value or ""):
+        raise ValueError("OWNER_AUTHORIZATION_REQUIRED")
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--source-commit", required=True)
+    parser.add_argument("--expected-manifest-hash")
+    parser.add_argument("--execute-frozen",type=Path)
+    parser.add_argument("--authorization-id")
+    parser.add_argument("--diagnose-slot")
+    args = parser.parse_args()
+    if args.diagnose_slot and not args.execute_frozen: raise ValueError("DIAGNOSTIC_REQUIRES_FROZEN_EXECUTION")
+    require_source(args.source_commit)
+    sidecar = load_sidecar()
+    manifest = prepare(sidecar,current_capability())
+    require_source(args.source_commit)
+    if args.execute_frozen:
+        require_owner_authorization(args.authorization_id)
+        frozen=json.loads(args.execute_frozen.read_text(encoding="utf-8"))
+        if not args.expected_manifest_hash or frozen.get("manifest_hash") != args.expected_manifest_hash:
+            raise ValueError("EXTERNAL_MANIFEST_PIN_REQUIRED")
+        if frozen != manifest: raise ValueError("FROZEN_DRIFT")
+        from app.deepseek_extended_provider_adapter import build_deepseek_extended_provider_adapter
+        from app.project_profile_generation import _read_provider_credential
+        adapter=build_deepseek_extended_provider_adapter()
+        def send(wire):
+            require_source(args.source_commit)
+            if source_identity() != manifest["source_identity"] or asdict(current_capability()) != manifest["capability"]:
+                raise ValueError("DISPATCH_SCOPE_DRIFT")
+            req=ProviderCredentialRequest(local_task_id="qualification-"+args.authorization_id,provider=manifest["provider"],model_id=manifest["model_id"],model_version=manifest["model_version"],task_type="daily_report_regenerate",output_schema_version="daily-report-regenerate/1.0",messages=tuple(wire["messages"]),max_output_tokens=wire["max_tokens"])
+            credential=_read_provider_credential()
+            try: return adapter.execute_with_credential(req,credential)
+            finally: credential=None
+        receipts=collect(frozen,args.output,send,authorization_id=args.authorization_id,diagnose_slot=args.diagnose_slot)
+        state = receipts[-1]["status"] if receipts else "stopped_before_send"
+        print(json.dumps({"status":state,"completed_receipts":len(receipts),"automatic_admission":False}))
+        if len(receipts)!=(1 if args.diagnose_slot else 21) or state!="succeeded": raise SystemExit(2)
+    else:
+        write_new(args.output,manifest)
+        print(json.dumps({"status":"prepared","slots":len(manifest["slots"]),"manifest_hash":manifest["manifest_hash"],"provider_calls":0,"credential_reads":0}))
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        print('{"status":"unknown_or_not_started","safe_code":"COLLECTION_ABORTED","dispatch_attempts":null}')
+        raise SystemExit(1)

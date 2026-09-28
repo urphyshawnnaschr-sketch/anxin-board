@@ -1,0 +1,97 @@
+name: Windows candidate runtime
+
+on:
+  pull_request:
+    paths:
+      - 'apps/backend/**'
+      - 'apps/frontend/**'
+      - 'installer/**'
+      - 'tests/backend/test_windows*'
+      - '.github/workflows/windows-product-delivery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PRODUCT_SOURCE_COMMIT: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  runtime:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PRODUCT_SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Isolate temporary and product data outside Git ancestry
+        shell: pwsh
+        run: |
+          $root = Join-Path ($env:SystemDrive + '\') ('AnxinBoard-ci-' + [guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $root | Out-Null
+          $ancestor = [IO.DirectoryInfo]$root
+          while ($null -ne $ancestor) {
+            if (Test-Path -LiteralPath (Join-Path $ancestor.FullName '.git')) { throw 'CI isolation root has a Git ancestor' }
+            $ancestor = $ancestor.Parent
+          }
+          $temp = Join-Path $root 'tmp'
+          $localApp = Join-Path $root 'localapp'
+          New-Item -ItemType Directory -Path $temp, $localApp | Out-Null
+          "ANXINBOARD_CI_ROOT=$root" >> $env:GITHUB_ENV
+          "TEMP=$temp" >> $env:GITHUB_ENV
+          "TMP=$temp" >> $env:GITHUB_ENV
+          "TMPDIR=$temp" >> $env:GITHUB_ENV
+          "LOCALAPPDATA=$localApp" >> $env:GITHUB_ENV
+          "ANXINBOARD_DB_PATH=$(Join-Path $localApp 'AnxinBoard\anxinboard.db')" >> $env:GITHUB_ENV
+          "ANXINBOARD_PRD_ROOT=$(Join-Path $temp 'prd')" >> $env:GITHUB_ENV
+          "ANXINBOARD_PROJECTS_ROOT=$(Join-Path $temp 'projects')" >> $env:GITHUB_ENV
+          "ANXINBOARD_STATE_PATH=$(Join-Path $root 'dev-processes.json')" >> $env:GITHUB_ENV
+          "PLAYWRIGHT_BROWSERS_PATH=$(Join-Path $root 'browsers')" >> $env:GITHUB_ENV
+          "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1" >> $env:GITHUB_ENV
+      - name: Verify runtime contracts offline
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check -r apps/backend/requirements.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $baseTemp = Join-Path $env:ANXINBOARD_CI_ROOT 'contracts'
+          python -E -X utf8 -m pytest tests/backend/test_windows_delivery_gate_contract.py tests/backend/test_windows_git_runtime_dependency_contract.py tests/backend/test_windows_product_runtime_contract.py tests/backend/test_product_backup.py tests/backend/test_product_backup_api.py tests/backend/test_backup_restore.py -q -ra --basetemp="$baseTemp"
+      - name: Build exact-source candidate runtime
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:ANXINBOARD_CI_ROOT 'runtime-build'
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\windows\build-runtime.ps1 -OutputRoot $out -SourceCommit $env:PRODUCT_SOURCE_COMMIT
+      - name: Verify packaged loopback backup restore and restart
+        shell: pwsh
+        run: |
+          $payload = Join-Path $env:ANXINBOARD_CI_ROOT 'runtime-build\payload'
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\windows\test-runtime.ps1 -PayloadRoot $payload
+      - name: Build and verify distribution candidate
+        shell: pwsh
+        run: |
+          $payload = Join-Path $env:ANXINBOARD_CI_ROOT 'runtime-build\payload'
+          $delivery = Join-Path $env:ANXINBOARD_CI_ROOT 'distribution'
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\windows\build-distribution.ps1 -PayloadRoot $payload -OutputRoot $delivery
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $zip = Get-ChildItem -LiteralPath $delivery -Filter '*.zip' -File
+          if (@($zip).Count -ne 1) { throw 'Expected one candidate ZIP' }
+          $extract = Join-Path $env:ANXINBOARD_CI_ROOT 'distribution-check'
+          Expand-Archive -LiteralPath $zip.FullName -DestinationPath $extract
+          $manifest = Get-Content -LiteralPath (Join-Path $extract 'delivery-manifest.json') -Raw | ConvertFrom-Json
+          if ($manifest.source_commit -cne $env:PRODUCT_SOURCE_COMMIT) { throw 'delivery candidate source commit mismatch' }
+          if ($manifest.formal_release -ne $false) { throw 'Candidate cannot claim formal release' }
+          Write-Host 'WINDOWS_DELIVERY_CANDIDATE=SUCCESS_NOT_RELEASED'
+      - name: Preserve candidate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-candidate-${{ matrix.os }}
+          path: ${{ env.ANXINBOARD_CI_ROOT }}/distribution/

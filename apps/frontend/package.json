@@ -1,0 +1,22 @@
+{
+  "name": "anxinboard-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "pretest:e2e": "node --test src/api/__tests__/reanalysisHandoff.test.mjs src/api/__tests__/modelSettings.test.mjs src/api/__tests__/projectProfileGeneration.test.mjs src/api/__tests__/projectStateBaseline.test.mjs src/api/__tests__/atlasBaseline.test.mjs src/api/__tests__/productBackup.test.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed"
+  },
+  "dependencies": {
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@vitejs/plugin-vue": "^5.2.3",
+    "vite": "^6.3.5"
+  }
+}

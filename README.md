@@ -1,0 +1,96 @@
+# 安心看板
+
+安心看板是一款在 Windows 本地运行的研发进度工具。它读取经用户确认的 Git 仓库与代码范围，结合项目需求和功能档案生成分析草稿；经人工审阅、补充和确认后，形成便于客户阅读的进度看板，并可发送邮件和独立 HTML 附件。
+
+## 当前功能
+
+- 创建项目、连接 Git 仓库，导入并确认 PRD 和功能模块档案。
+- 为已有代码建立进度底座，后续按确认的变化范围更新，保留未变化模块的既有状态。
+- 保存 AI 分析原文，将项目经理补充、模块说明与原始分析分开记录。
+- 正式看板展示本次工作、模块进展、代码新增与删除行数、改动文件数以及生成时保存的模型来源。
+- 通过受保护的确认与发送流程交付邮件，正文和自包含 HTML 附件使用同一报告内容；未知发送结果不会自动重发。
+- 提供 Windows 运行包、安装器构建，以及备份和恢复工具。
+
+当前实际接入的模型提供商是 DeepSeek。其他提供商不能仅靠修改模型名称启用。模型调用和邮件发送需要使用者自行配置凭据并按界面确认；本仓库不附带任何可用凭据、客户项目或运行数据库。
+
+## 从源码启动
+
+环境要求：Windows 10/11、Python 3.11 或更新版本、Node.js 20 或更新版本、Git for Windows 2.45 或更新版本。开发验证及打包脚本另外使用 PowerShell 7（`pwsh`）。
+
+```powershell
+git clone https://github.com/urphyshawnnaschr-sketch/anxin-board.git
+cd anxin-board
+.\Start-AnxinBoard.cmd
+```
+
+启动器会检查环境，在当前目录创建独立 Python 虚拟环境并安装项目依赖，然后启动只绑定本机回环地址的服务并打开浏览器。首次安装依赖需要网络。以后启动复用本目录已安装的依赖。
+
+请通过 `Start-AnxinBoard.cmd` 打开业务页面。它会建立一次性的本地浏览器会话；单独打开开发服务器地址，不等同于完成受保护操作所需的会话建立。
+
+停止当前源码目录启动的进程：
+
+```powershell
+.\Stop-AnxinBoard.cmd
+```
+
+停止脚本会核对进程身份和源码目录，不会只根据端口号结束其他程序。
+
+首次使用时，先配置项目并确认需求、功能档案和 Git 基线。日报比较的是已确认起点之后的代码变化；没有新增提交时不会把空范围伪装成新进展。已有项目的全量现状分析使用单独的进度底座流程。
+
+## 数据与凭据
+
+默认运行数据位于仓库外的 `%LOCALAPPDATA%\AnxinBoard\`。不要将这个目录、数据库、项目 PRD、导入的客户代码、邮件、日志或备份加入 Git。
+
+模型和 SMTP 凭据通过产品设置流程配置，不应写入源码、测试文件、命令行参数或提交记录。真实模型请求可能计费；本仓库的离线测试使用合成数据和替身服务，测试通过不代表新的真实模型调用已获授权。
+
+## 开发与验证
+
+手动安装本目录依赖：
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r apps\backend\requirements.txt
+npm.cmd ci --prefix apps/frontend
+```
+
+后端测试：
+
+```powershell
+.\.venv\Scripts\python.exe -E -X utf8 -m pytest tests/backend -q -ra
+```
+
+前端构建：
+
+```powershell
+npm.cmd run build --prefix apps/frontend
+```
+
+浏览器回归从 `apps/frontend` 执行，首次先安装测试浏览器：
+
+```powershell
+cd apps/frontend
+npx.cmd playwright install chromium
+npm.cmd run test:e2e
+```
+
+浏览器回归使用合成接口响应，验证页面交互；它与真实后端的集成验证、真实模型请求和邮件收件验收是不同层面的证据。
+
+## Windows 打包
+
+运行包构建要求当前目录已提交，传入的源码提交必须与当前 HEAD 一致，输出目录必须是新的目录：
+
+```powershell
+$sourceCommit = git rev-parse HEAD
+pwsh -NoProfile -File installer/windows/build-runtime.ps1 -OutputRoot ../anxin-runtime -SourceCommit $sourceCommit
+pwsh -NoProfile -File installer/windows/test-runtime.ps1 -PayloadRoot ../anxin-runtime/payload
+```
+
+生成安装器还需要 Inno Setup 6 和 Windows .NET Framework C# 编译器。具体参数见 `installer/windows/build-installer.ps1`。未经签名和目标客户环境验收的构建应作为测试候选，不应表述为已通过所有生产发布门。
+
+## 使用边界
+
+本产品不会自动向被分析仓库提交、推送或合并代码。功能状态依据所提供的代码和需求证据，不代表已经完成真实设备联调、客户验收或生产发布；代码行数也不是项目完成百分比。
+
+重新分析和矛盾检测还有独立的模型资格门。默认资格注册表为空时不会自动放行；这与首次日报生成的准入规则不同。不得通过伪造资格、绕过确认或自动改用其他模型解除限制。
+
+本仓库尚未附带开源许可证。仓库公开和授予开源许可证是不同事项。

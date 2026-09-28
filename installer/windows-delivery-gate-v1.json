@@ -1,0 +1,201 @@
+{
+  "schema_version": "anxin_windows_delivery_gate_v1",
+  "snapshot_kind": "public_source_candidate_contract",
+  "description": "Versioned candidate boundaries, not an execution receipt. New repository validation must record its own exact source and results.",
+  "final_package_allowed": false,
+  "dependencies": {
+    "secure_launcher": {
+      "status": "implementation_ready_evidence_pending",
+      "required_evidence": "independent exact-source review and executable isolated start/stop/restart evidence"
+    },
+    "git_runtime": {
+      "status": "implementation_ready_evidence_pending",
+      "minimum_supported_version": "2.45",
+      "required_capability": "git --no-lazy-fetch --version",
+      "normal_user_contract": "checked before Setup install mutation and before UI mount/server start",
+      "security_intent": "--no-lazy-fetch is preserved; old or missing Git fails closed, never made green by dropping that control"
+    },
+    "restore_capability": {
+      "status": "implementation_ready_evidence_pending",
+      "implementation": "SQLite-only product wrapper and offline restore controller; approved non-reparse Storage root and no live runtime ownership"
+    }
+  },
+  "candidate_runtime": {
+    "classification": "standalone_onedir_runtime_candidate",
+    "formal_non_developer_delivery": false,
+    "normal_user_machine_prerequisites": [
+      "Git for Windows 2.45+ with --no-lazy-fetch capability"
+    ],
+    "build_machine_prerequisites": [
+      "Python 3.11+",
+      "Node.js 20+",
+      "npm",
+      "pyinstaller==6.16.0",
+      "Git 2.45+ with --no-lazy-fetch capability"
+    ],
+    "backend_and_ui": "one loopback FastAPI process plus pre-built Vue assets on the same authority",
+    "bind_authority": "127.0.0.1 only",
+    "runtime_state": "developer local-run.json or installed installed-run.json under the product data root",
+    "program_root": "%LOCALAPPDATA%\\Programs\\AnxinBoard\\",
+    "data_root": "%LOCALAPPDATA%\\AnxinBoard\\",
+    "provenance": "runtime-manifest.json with ordered file size/SHA-256 entries and source commit; distribution layer independently re-attests exact payload member set before ZIP creation",
+    "diagnostics_binding": "single runtime-manifest-bound payload/AnxinBoard.Runtime/tools/collect-diagnostics.ps1; no separate top-level diagnostics copy",
+    "installed_runtime_resolver": "implemented; verifies active pointer, manifest digest, exact runtime tree, ancestor reparse chain and runtime/frontend/diagnostics bindings, and returns only a relative executable path; performs no launcher/session/credential authority",
+    "launcher_authority": "reuse versioned secure launcher; independent exact-source review and executable evidence required"
+  },
+  "reusable_security_boundaries": {
+    "start_entry": "versioned secure launcher with one-time in-memory browser bootstrap; no credential access at startup",
+    "stop_entry": "existing identity-checked stop authority; never terminate by port alone",
+    "local_session": "reuse existing one-bootstrap/one-session in-memory guard and exact loopback-origin validation",
+    "credential_store": "reuse Windows Credential Manager Generic Credentials in fixed AnxinBoard/ namespace",
+    "secret_in_installer_payload": "forbidden",
+    "secret_in_plain_config": "forbidden",
+    "secret_in_logs_or_diagnostics": "forbidden",
+    "ordinary_backup_scope": "SQLite product database snapshot only; Credential Manager is not read or serialized",
+    "backup_export_authorization": "guarded by existing same-origin local session; response is no-store; temporary package is cleaned after send",
+    "restore_route": "offline_controller_only_no_browser_restore_route",
+    "program_path_reparse_policy": "existing install/rollback/resolver/uninstall ancestor chains and program tree members are fail-closed against reparse redirection",
+    "diagnostics_path_reparse_policy": "data/output roots reject reparse; DB/runtime-state/runtime-manifest reparse files are never followed",
+    "real_credential_access_without_gate": "forbidden",
+    "real_user_restore_without_gate": "forbidden",
+    "real_user_install_mutation_without_gate": "forbidden"
+  },
+  "capability_snapshot": {
+    "delivery_candidate_bundle": "payload_reattest_implemented_evidence_pending",
+    "installed_runtime_resolver": "implemented_evidence_pending",
+    "backup_export": "guarded_same_origin_sqlite_export_implemented_evidence_pending",
+    "restore_import": "offline_controller_implemented_evidence_pending",
+    "launcher_cross_session_hardening": "implemented_exact_source_review_and_executable_evidence_pending",
+    "clean_client_harness": "disposable_client_harness_implemented_not_executed",
+    "git_runtime_dependency_contract": "explicit_prerequisite_plus_prebusiness_capability_probe_implemented_evidence_pending"
+  },
+  "validation_carriers": {
+    "github_hosted_windows": {
+      "status": "not_started",
+      "runner_labels": [
+        "windows-2022",
+        "windows-2025"
+      ],
+      "evidence": []
+    },
+    "local_windows": {
+      "status": "not_started",
+      "evidence": []
+    }
+  },
+  "validation_matrix": [
+    {
+      "id": "clean_windows_10",
+      "status": "not_started",
+      "evidence": [],
+      "implementation_refs": [
+        "installer/windows/test-clean-client-evidence.ps1"
+      ]
+    },
+    {
+      "id": "clean_windows_11",
+      "status": "not_started",
+      "evidence": [],
+      "implementation_refs": [
+        "installer/windows/test-clean-client-evidence.ps1"
+      ]
+    },
+    {
+      "id": "install",
+      "status": "implementation_ready_evidence_pending",
+      "evidence": [],
+      "implementation_refs": [
+        "installer/windows/AnxinBoard.iss",
+        "installer/windows/install-runtime.ps1",
+        "installer/windows/resolve-installed-runtime.ps1"
+      ]
+    },
+    {
+      "id": "first_run",
+      "status": "implementation_ready_evidence_pending",
+      "evidence": [],
+      "implementation_refs": [
+        "apps/backend/app/git_runtime_capability.py",
+        "apps/backend/product_entry.py",
+        "installer/windows/test-runtime.ps1",
+        "installer/windows/test-clean-client-evidence.ps1"
+      ]
+    },
+    {
+      "id": "stop_restart",
+      "status": "implementation_ready_evidence_pending",
+      "evidence": [],
+      "implementation_refs": [
+        "installer/windows/start-installed-product.ps1",
+        "installer/windows/stop-installed-product.ps1"
+      ]
+    },
+    {
+      "id": "upgrade",
+      "status": "implementation_ready_evidence_pending",
+      "evidence": [],
+      "implementation_refs": [
+        "installer/windows/install-runtime.ps1",
+        "installer/windows/rollback-runtime.ps1",
+        "installer/windows/test-clean-client-evidence.ps1"
+      ]
+    },
+    {
+      "id": "credential_persistence_boundary",
+      "status": "implementation_ready_evidence_pending",
+      "evidence": [],
+      "implementation_refs": [
+        "installer/windows/test-clean-client-evidence.ps1"
+      ]
+    },
+    {
+      "id": "uninstall",
+      "status": "implementation_ready_evidence_pending",
+      "evidence": [],
+      "implementation_refs": [
+        "installer/windows/uninstall-product.ps1",
+        "installer/windows/test-clean-client-evidence.ps1"
+      ]
+    },
+    {
+      "id": "backup_restore",
+      "status": "implementation_ready_evidence_pending",
+      "evidence": [],
+      "implementation_refs": [
+        "apps/backend/app/backup_package.py",
+        "apps/backend/app/backup_restore.py",
+        "apps/backend/app/product_backup.py",
+        "apps/backend/app/product_backup_api.py",
+        "installer/windows/test-runtime.ps1"
+      ]
+    },
+    {
+      "id": "failure_diagnostics",
+      "status": "implementation_ready_evidence_pending",
+      "evidence": [],
+      "implementation_refs": [
+        "installer/windows/collect-diagnostics.ps1",
+        "installer/windows/test-clean-client-evidence.ps1"
+      ]
+    },
+    {
+      "id": "interruption_restart_recovery",
+      "status": "implementation_ready_evidence_pending",
+      "evidence": [],
+      "implementation_refs": [
+        "apps/backend/app/backup_restore.py",
+        "apps/backend/app/product_backup.py",
+        "installer/windows/install-runtime.ps1",
+        "installer/windows/rollback-runtime.ps1"
+      ]
+    }
+  ],
+  "evidence_policy": {
+    "static_read_counts_as_delivery_proof": false,
+    "implementation_ref_counts_as_delivery_proof": false,
+    "disposable_vm_or_ci_preferred": true,
+    "real_user_machine_requires_explicit_gate": true,
+    "real_credentials_require_explicit_gate": true,
+    "builder_self_pass_forbidden": true
+  }
+}

@@ -1,0 +1,10 @@
+/* Frozen client-board compatibility only. Management UI uses styles.css. */
+/* Formal Anxin Board is client-facing output. Keep business facts, remove system/template commentary. */
+.anxin-board-page [data-testid="git-metric-disclaimer"],
+.anxin-board-page .section-head .helper,
+.anxin-board-page .today-note-secondary,
+.anxin-board-page .scope-note,
+.anxin-board-page .board-footer,
+.anxin-board-page .basis-item.basis-wide,
+.anxin-board-page .basis-group[aria-label="模型与来源信息"],
+.anxin-board-page .basis-group[aria-label="责任边界"]{display:none!important}

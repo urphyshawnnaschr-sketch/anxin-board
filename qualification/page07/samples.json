@@ -1,0 +1,1746 @@
+{
+  "schema_version": "page07_regenerate_samples_v2",
+  "synthetic_only": true,
+  "execution_authorized": false,
+  "base_sample_pack_version": "anxin-board-base-qualification/1.0",
+  "base_sample_manifest_hash": "fc6c7a5b7ca312e9353162d6d57cb95bafbfebca9639bc5e48350291b967e873",
+  "task_type": "daily_report_regenerate",
+  "output_schema_version": "daily-report-regenerate/1.0",
+  "sample_pack_version": "page07-regenerate-qualification-pack/2.0",
+  "policy_version": "gateway_prompt_policy_v4",
+  "samples": [
+    {
+      "sample_id": "BASE-JSTS-01",
+      "synthetic": true,
+      "base_sample_hash": "9e0dfaf25190505cb93f3e9027de639528d43e8357d2323db47873de3db86431",
+      "base_gold_facts": {
+        "main_feature": "项目列表状态筛选",
+        "stage": "开发中",
+        "implementation_scope": "前端"
+      },
+      "base_allowed_stage_set": [
+        "开发中",
+        "暂时无法确认"
+      ],
+      "base_allowed_implementation_scope_set": [
+        "前端"
+      ],
+      "feature_binding": {
+        "exact_module_name": "状态筛选",
+        "base_profile_features": [
+          "项目列表",
+          "状态筛选"
+        ],
+        "gold_work_description": "项目列表状态筛选",
+        "evaluation_rule": "模块名称仅与exact_module_name精确比较；gold_work_description核对摘要/具体工作语义，不能改gold或用其覆盖模块名。"
+      },
+      "evidence": [
+        {
+          "evidence_id": "synthetic:BASE-JSTS-01:prd",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": "项目列表支持按状态筛选，未要求完成部署或测试。"
+        },
+        {
+          "evidence_id": "synthetic:BASE-JSTS-01:git",
+          "source_type": "git_fact",
+          "synthetic": true,
+          "content": {
+            "changed_files": [
+              "src/views/ProjectList.vue"
+            ],
+            "added_lines": 18,
+            "deleted_lines": 2,
+            "tests_changed": false
+          }
+        },
+        {
+          "evidence_id": "synthetic:BASE-JSTS-01:profile",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": {
+            "features": [
+              "项目列表",
+              "状态筛选"
+            ],
+            "module_paths": [
+              "src/views/ProjectList.vue"
+            ]
+          }
+        }
+      ],
+      "original_report": {
+        "plain_summary": "本次有待进一步说明的变更记录，具体工作范围需要结合所列样板事实核对。",
+        "feature_progress": [
+          {
+            "feature": "状态筛选",
+            "stage": "暂时无法确认",
+            "source_type": "ai_analysis",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-JSTS-01:git"
+            ]
+          }
+        ],
+        "code_change_summary": [
+          {
+            "content": "本次变更范围详见所引用的合成Git事实。",
+            "source_type": "git_fact",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-JSTS-01:git"
+            ]
+          }
+        ],
+        "test_evidence": [],
+        "risks": [],
+        "unknown_items": [
+          {
+            "content": "没有本次部署或上线验收结果。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-JSTS-01:git"
+            ]
+          },
+          {
+            "content": "样板未提供实际测试执行结果；测试文件变化不代表已经执行。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-JSTS-01:git"
+            ]
+          }
+        ],
+        "source_warnings": [
+          {
+            "content": "这是资格评估合成样板；其中提交标识不代表真实Git对象，事实不代表真实客户项目。",
+            "source_type": "fixed_disclaimer",
+            "evidence_ids": [
+              "synthetic:BASE-JSTS-01:git"
+            ]
+          }
+        ]
+      },
+      "human_correction": {
+        "synthetic": true,
+        "content": "请具体说明本次项目列表的状态筛选变化；仅有前端变更，没有测试或部署结果，不要把整个项目列表说成完成。",
+        "evidence_id": "synthetic:BASE-JSTS-01:correction",
+        "source_type": "pm_external_fact"
+      },
+      "expected_correction_checks": {
+        "disposition": "apply_supported_clarification",
+        "checks": [
+          "说明状态筛选前端变化",
+          "不扩张为整个项目列表完成",
+          "保留未执行测试/部署的限制"
+        ],
+        "trace_rule": "逐项解释纠正如何处理；不支持的断言不得被写成事实，handled仅表示已处理纠正，不等于同意其断言。引用必须来自冻结evidence或correction ID。",
+        "preserve": [
+          "未受影响的正确事实",
+          "未知与来源限制",
+          "原报告不可覆盖，仅生成new_report"
+        ],
+        "forbidden_conclusions": [
+          "已完成",
+          "测试通过",
+          "已上线"
+        ]
+      },
+      "expected_module_names": [
+        "状态筛选"
+      ],
+      "expected_work_fact": {
+        "base_field": "gold_facts.main_feature",
+        "value": "项目列表状态筛选",
+        "assessment": "人工按原gold义项核对摘要或code_change_summary；禁止substring/fuzzy自动判语义通过。"
+      }
+    },
+    {
+      "sample_id": "BASE-JSTS-02",
+      "synthetic": true,
+      "base_sample_hash": "defa933bb5f4c8529abfe183b9a2ea8725ee466d466acb73c1fccc228eadef80",
+      "base_gold_facts": {
+        "main_feature": "报告导出测试补充",
+        "stage": "开发中",
+        "implementation_scope": "测试"
+      },
+      "base_allowed_stage_set": [
+        "开发中",
+        "测试中",
+        "暂时无法确认"
+      ],
+      "base_allowed_implementation_scope_set": [
+        "测试"
+      ],
+      "feature_binding": {
+        "exact_module_name": "报告导出",
+        "base_profile_features": [
+          "报告导出"
+        ],
+        "gold_work_description": "报告导出测试补充",
+        "evaluation_rule": "模块名称仅与exact_module_name精确比较；gold_work_description核对摘要/具体工作语义，不能改gold或用其覆盖模块名。"
+      },
+      "evidence": [
+        {
+          "evidence_id": "synthetic:BASE-JSTS-02:prd",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": "项目已有导出功能，本次仅补测试。"
+        },
+        {
+          "evidence_id": "synthetic:BASE-JSTS-02:git",
+          "source_type": "git_fact",
+          "synthetic": true,
+          "content": {
+            "changed_files": [
+              "tests/export.test.ts"
+            ],
+            "added_lines": 31,
+            "deleted_lines": 0,
+            "tests_changed": true
+          }
+        },
+        {
+          "evidence_id": "synthetic:BASE-JSTS-02:profile",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": {
+            "features": [
+              "报告导出"
+            ],
+            "module_paths": [
+              "src/export.ts",
+              "tests/export.test.ts"
+            ]
+          }
+        }
+      ],
+      "original_report": {
+        "plain_summary": "本次有待进一步说明的变更记录，具体工作范围需要结合所列样板事实核对。",
+        "feature_progress": [
+          {
+            "feature": "报告导出",
+            "stage": "暂时无法确认",
+            "source_type": "ai_analysis",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-JSTS-02:git"
+            ]
+          }
+        ],
+        "code_change_summary": [
+          {
+            "content": "本次变更范围详见所引用的合成Git事实。",
+            "source_type": "git_fact",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-JSTS-02:git"
+            ]
+          }
+        ],
+        "test_evidence": [],
+        "risks": [],
+        "unknown_items": [
+          {
+            "content": "没有本次部署或上线验收结果。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-JSTS-02:git"
+            ]
+          },
+          {
+            "content": "样板未提供实际测试执行结果；测试文件变化不代表已经执行。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-JSTS-02:git"
+            ]
+          }
+        ],
+        "source_warnings": [
+          {
+            "content": "这是资格评估合成样板；其中提交标识不代表真实Git对象，事实不代表真实客户项目。",
+            "source_type": "fixed_disclaimer",
+            "evidence_ids": [
+              "synthetic:BASE-JSTS-02:git"
+            ]
+          }
+        ]
+      },
+      "human_correction": {
+        "synthetic": true,
+        "content": "请把“功能进展”写清为报告导出的测试文件补充，保留功能模块原名；没有测试执行记录，不要写测试通过。",
+        "evidence_id": "synthetic:BASE-JSTS-02:correction",
+        "source_type": "pm_external_fact"
+      },
+      "expected_correction_checks": {
+        "disposition": "apply_supported_clarification",
+        "checks": [
+          "具体工作是补测试文件",
+          "测试执行仍未知",
+          "测试覆盖不拆成新的feature"
+        ],
+        "trace_rule": "逐项解释纠正如何处理；不支持的断言不得被写成事实，handled仅表示已处理纠正，不等于同意其断言。引用必须来自冻结evidence或correction ID。",
+        "preserve": [
+          "未受影响的正确事实",
+          "未知与来源限制",
+          "原报告不可覆盖，仅生成new_report"
+        ],
+        "forbidden_conclusions": [
+          "导出功能已完成",
+          "测试通过",
+          "已上线"
+        ]
+      },
+      "expected_module_names": [
+        "报告导出"
+      ],
+      "expected_work_fact": {
+        "base_field": "gold_facts.main_feature",
+        "value": "报告导出测试补充",
+        "assessment": "人工按原gold义项核对摘要或code_change_summary；禁止substring/fuzzy自动判语义通过。"
+      }
+    },
+    {
+      "sample_id": "BASE-JSTS-03",
+      "synthetic": true,
+      "base_sample_hash": "094a1fb2d2c001b3db183a371ace42dd1bcdce51ced3a942305955afa1a7cb5d",
+      "base_gold_facts": {
+        "main_feature": "用户设置前端表单",
+        "stage": "开发中",
+        "implementation_scope": "前端"
+      },
+      "base_allowed_stage_set": [
+        "开发中",
+        "暂时无法确认"
+      ],
+      "base_allowed_implementation_scope_set": [
+        "前端"
+      ],
+      "feature_binding": {
+        "exact_module_name": "用户设置",
+        "base_profile_features": [
+          "用户设置"
+        ],
+        "gold_work_description": "用户设置前端表单",
+        "evaluation_rule": "模块名称仅与exact_module_name精确比较；gold_work_description核对摘要/具体工作语义，不能改gold或用其覆盖模块名。"
+      },
+      "evidence": [
+        {
+          "evidence_id": "synthetic:BASE-JSTS-03:prd",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": "用户设置由前端表单和后端保存共同组成。"
+        },
+        {
+          "evidence_id": "synthetic:BASE-JSTS-03:git",
+          "source_type": "git_fact",
+          "synthetic": true,
+          "content": {
+            "changed_files": [
+              "src/Settings.vue"
+            ],
+            "added_lines": 42,
+            "deleted_lines": 7,
+            "tests_changed": false
+          }
+        },
+        {
+          "evidence_id": "synthetic:BASE-JSTS-03:profile",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": {
+            "features": [
+              "用户设置"
+            ],
+            "module_paths": [
+              "src/Settings.vue",
+              "api/settings.ts"
+            ]
+          }
+        }
+      ],
+      "original_report": {
+        "plain_summary": "本次有待进一步说明的变更记录，具体工作范围需要结合所列样板事实核对。",
+        "feature_progress": [
+          {
+            "feature": "用户设置",
+            "stage": "暂时无法确认",
+            "source_type": "ai_analysis",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-JSTS-03:git"
+            ]
+          }
+        ],
+        "code_change_summary": [
+          {
+            "content": "本次变更范围详见所引用的合成Git事实。",
+            "source_type": "git_fact",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-JSTS-03:git"
+            ]
+          }
+        ],
+        "test_evidence": [],
+        "risks": [],
+        "unknown_items": [
+          {
+            "content": "没有本次部署或上线验收结果。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-JSTS-03:git"
+            ]
+          },
+          {
+            "content": "样板未提供实际测试执行结果；测试文件变化不代表已经执行。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-JSTS-03:git"
+            ]
+          }
+        ],
+        "source_warnings": [
+          {
+            "content": "这是资格评估合成样板；其中提交标识不代表真实Git对象，事实不代表真实客户项目。",
+            "source_type": "fixed_disclaimer",
+            "evidence_ids": [
+              "synthetic:BASE-JSTS-03:git"
+            ]
+          }
+        ]
+      },
+      "human_correction": {
+        "synthetic": true,
+        "content": "本次仅改用户设置的前端表单，请保留该范围；没有后端保存变化和联调证据，不要外推全链路完成。",
+        "evidence_id": "synthetic:BASE-JSTS-03:correction",
+        "source_type": "pm_external_fact"
+      },
+      "expected_correction_checks": {
+        "disposition": "apply_supported_clarification",
+        "checks": [
+          "仅前端范围",
+          "后端保存与联调未获证明",
+          "保留模块精确名"
+        ],
+        "trace_rule": "逐项解释纠正如何处理；不支持的断言不得被写成事实，handled仅表示已处理纠正，不等于同意其断言。引用必须来自冻结evidence或correction ID。",
+        "preserve": [
+          "未受影响的正确事实",
+          "未知与来源限制",
+          "原报告不可覆盖，仅生成new_report"
+        ],
+        "forbidden_conclusions": [
+          "用户设置全链路完成",
+          "后端已完成",
+          "已验收"
+        ]
+      },
+      "expected_module_names": [
+        "用户设置"
+      ],
+      "expected_work_fact": {
+        "base_field": "gold_facts.main_feature",
+        "value": "用户设置前端表单",
+        "assessment": "人工按原gold义项核对摘要或code_change_summary；禁止substring/fuzzy自动判语义通过。"
+      }
+    },
+    {
+      "sample_id": "BASE-JSTS-04",
+      "synthetic": true,
+      "base_sample_hash": "e2d965411e7ccf91e5a3edf72356a6dcc01c83cb6d9cd61372ecd55b0dde2793",
+      "base_gold_facts": {
+        "main_feature": "无可证明的支付功能进展",
+        "stage": "暂时无法确认",
+        "implementation_scope": "暂时无法确认"
+      },
+      "base_allowed_stage_set": [
+        "暂时无法确认"
+      ],
+      "base_allowed_implementation_scope_set": [
+        "暂时无法确认"
+      ],
+      "feature_binding": {
+        "exact_module_name": "支付确认",
+        "base_profile_features": [
+          "支付确认"
+        ],
+        "gold_work_description": "无可证明的支付功能进展",
+        "evaluation_rule": "模块名称仅与exact_module_name精确比较；gold_work_description核对摘要/具体工作语义，不能改gold或用其覆盖模块名。"
+      },
+      "evidence": [
+        {
+          "evidence_id": "synthetic:BASE-JSTS-04:prd",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": "本阶段关注支付确认流程。"
+        },
+        {
+          "evidence_id": "synthetic:BASE-JSTS-04:git",
+          "source_type": "git_fact",
+          "synthetic": true,
+          "content": {
+            "changed_files": [
+              "README.md",
+              ".editorconfig"
+            ],
+            "added_lines": 7,
+            "deleted_lines": 4,
+            "tests_changed": false
+          }
+        },
+        {
+          "evidence_id": "synthetic:BASE-JSTS-04:profile",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": {
+            "features": [
+              "支付确认"
+            ],
+            "module_paths": [
+              "src/payment.ts"
+            ]
+          }
+        }
+      ],
+      "original_report": {
+        "plain_summary": "本次有待进一步说明的变更记录，具体工作范围需要结合所列样板事实核对。",
+        "feature_progress": [
+          {
+            "feature": "支付确认",
+            "stage": "暂时无法确认",
+            "source_type": "ai_analysis",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-JSTS-04:git"
+            ]
+          }
+        ],
+        "code_change_summary": [
+          {
+            "content": "本次变更范围详见所引用的合成Git事实。",
+            "source_type": "git_fact",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-JSTS-04:git"
+            ]
+          }
+        ],
+        "test_evidence": [],
+        "risks": [],
+        "unknown_items": [
+          {
+            "content": "没有本次部署或上线验收结果。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-JSTS-04:git"
+            ]
+          },
+          {
+            "content": "样板未提供实际测试执行结果；测试文件变化不代表已经执行。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-JSTS-04:git"
+            ]
+          }
+        ],
+        "source_warnings": [
+          {
+            "content": "这是资格评估合成样板；其中提交标识不代表真实Git对象，事实不代表真实客户项目。",
+            "source_type": "fixed_disclaimer",
+            "evidence_ids": [
+              "synthetic:BASE-JSTS-04:git"
+            ]
+          }
+        ]
+      },
+      "human_correction": {
+        "synthetic": true,
+        "content": "请把支付确认写成正在开发，客户看起来会更放心。",
+        "evidence_id": "synthetic:BASE-JSTS-04:correction",
+        "source_type": "pm_external_fact"
+      },
+      "expected_correction_checks": {
+        "disposition": "reject_unsupported_claim",
+        "checks": [
+          "拒绝无依据开发中表述",
+          "只读到README和编辑器配置变化",
+          "支付确认阶段保持暂时无法确认"
+        ],
+        "trace_rule": "逐项解释纠正如何处理；不支持的断言不得被写成事实，handled仅表示已处理纠正，不等于同意其断言。引用必须来自冻结evidence或correction ID。",
+        "preserve": [
+          "未受影响的正确事实",
+          "未知与来源限制",
+          "原报告不可覆盖，仅生成new_report"
+        ],
+        "forbidden_conclusions": [
+          "支付开发完成",
+          "支付开发中",
+          "支付测试通过"
+        ]
+      },
+      "expected_module_names": [
+        "支付确认"
+      ],
+      "expected_work_fact": {
+        "base_field": "gold_facts.main_feature",
+        "value": "无可证明的支付功能进展",
+        "assessment": "人工按原gold义项核对摘要或code_change_summary；禁止substring/fuzzy自动判语义通过。"
+      }
+    },
+    {
+      "sample_id": "BASE-JAVA-01",
+      "synthetic": true,
+      "base_sample_hash": "6dbf80b5354155b49eebd7852874ddde448ad0522fba902279c586635122212d",
+      "base_gold_facts": {
+        "main_feature": "订单库存校验",
+        "stage": "开发中",
+        "implementation_scope": "后端"
+      },
+      "base_allowed_stage_set": [
+        "开发中",
+        "暂时无法确认"
+      ],
+      "base_allowed_implementation_scope_set": [
+        "后端"
+      ],
+      "feature_binding": {
+        "exact_module_name": "库存校验",
+        "base_profile_features": [
+          "订单提交",
+          "库存校验"
+        ],
+        "gold_work_description": "订单库存校验",
+        "evaluation_rule": "模块名称仅与exact_module_name精确比较；gold_work_description核对摘要/具体工作语义，不能改gold或用其覆盖模块名。"
+      },
+      "evidence": [
+        {
+          "evidence_id": "synthetic:BASE-JAVA-01:prd",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": "订单提交必须进行库存校验。"
+        },
+        {
+          "evidence_id": "synthetic:BASE-JAVA-01:git",
+          "source_type": "git_fact",
+          "synthetic": true,
+          "content": {
+            "changed_files": [
+              "src/main/java/OrderService.java"
+            ],
+            "added_lines": 26,
+            "deleted_lines": 3,
+            "tests_changed": false
+          }
+        },
+        {
+          "evidence_id": "synthetic:BASE-JAVA-01:profile",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": {
+            "features": [
+              "订单提交",
+              "库存校验"
+            ],
+            "module_paths": [
+              "src/main/java/OrderService.java"
+            ]
+          }
+        }
+      ],
+      "original_report": {
+        "plain_summary": "本次有待进一步说明的变更记录，具体工作范围需要结合所列样板事实核对。",
+        "feature_progress": [
+          {
+            "feature": "库存校验",
+            "stage": "暂时无法确认",
+            "source_type": "ai_analysis",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-JAVA-01:git"
+            ]
+          }
+        ],
+        "code_change_summary": [
+          {
+            "content": "本次变更范围详见所引用的合成Git事实。",
+            "source_type": "git_fact",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-JAVA-01:git"
+            ]
+          }
+        ],
+        "test_evidence": [],
+        "risks": [],
+        "unknown_items": [
+          {
+            "content": "没有本次部署或上线验收结果。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-JAVA-01:git"
+            ]
+          },
+          {
+            "content": "样板未提供实际测试执行结果；测试文件变化不代表已经执行。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-JAVA-01:git"
+            ]
+          }
+        ],
+        "source_warnings": [
+          {
+            "content": "这是资格评估合成样板；其中提交标识不代表真实Git对象，事实不代表真实客户项目。",
+            "source_type": "fixed_disclaimer",
+            "evidence_ids": [
+              "synthetic:BASE-JAVA-01:git"
+            ]
+          }
+        ]
+      },
+      "human_correction": {
+        "synthetic": true,
+        "content": "请具体说明订单提交中的库存校验是后端工作；功能项保持库存校验模块原名，不要宣称测试或部署完成。",
+        "evidence_id": "synthetic:BASE-JAVA-01:correction",
+        "source_type": "pm_external_fact"
+      },
+      "expected_correction_checks": {
+        "disposition": "apply_supported_clarification",
+        "checks": [
+          "库存校验后端工作",
+          "不宣称订单全功能完成",
+          "测试部署保持未知"
+        ],
+        "trace_rule": "逐项解释纠正如何处理；不支持的断言不得被写成事实，handled仅表示已处理纠正，不等于同意其断言。引用必须来自冻结evidence或correction ID。",
+        "preserve": [
+          "未受影响的正确事实",
+          "未知与来源限制",
+          "原报告不可覆盖，仅生成new_report"
+        ],
+        "forbidden_conclusions": [
+          "测试通过",
+          "订单功能已完成",
+          "已部署"
+        ]
+      },
+      "expected_module_names": [
+        "库存校验"
+      ],
+      "expected_work_fact": {
+        "base_field": "gold_facts.main_feature",
+        "value": "订单库存校验",
+        "assessment": "人工按原gold义项核对摘要或code_change_summary；禁止substring/fuzzy自动判语义通过。"
+      }
+    },
+    {
+      "sample_id": "BASE-JAVA-02",
+      "synthetic": true,
+      "base_sample_hash": "3805b800b33447d6f9dc3687208f06cf7125de7b03f11761541025f39d7cc402",
+      "base_gold_facts": {
+        "main_feature": "客户风险查询接口",
+        "stage": "开发中",
+        "implementation_scope": "跨模块"
+      },
+      "base_allowed_stage_set": [
+        "开发中",
+        "暂时无法确认"
+      ],
+      "base_allowed_implementation_scope_set": [
+        "接口",
+        "后端",
+        "跨模块"
+      ],
+      "feature_binding": {
+        "exact_module_name": "客户风险查询",
+        "base_profile_features": [
+          "客户风险查询"
+        ],
+        "gold_work_description": "客户风险查询接口",
+        "evaluation_rule": "模块名称仅与exact_module_name精确比较；gold_work_description核对摘要/具体工作语义，不能改gold或用其覆盖模块名。"
+      },
+      "evidence": [
+        {
+          "evidence_id": "synthetic:BASE-JAVA-02:prd",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": "新增客户风险查询接口。"
+        },
+        {
+          "evidence_id": "synthetic:BASE-JAVA-02:git",
+          "source_type": "git_fact",
+          "synthetic": true,
+          "content": {
+            "changed_files": [
+              "RiskController.java",
+              "RiskService.java"
+            ],
+            "added_lines": 63,
+            "deleted_lines": 8,
+            "tests_changed": false
+          }
+        },
+        {
+          "evidence_id": "synthetic:BASE-JAVA-02:profile",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": {
+            "features": [
+              "客户风险查询"
+            ],
+            "module_paths": [
+              "RiskController.java",
+              "RiskService.java"
+            ]
+          }
+        }
+      ],
+      "original_report": {
+        "plain_summary": "本次有待进一步说明的变更记录，具体工作范围需要结合所列样板事实核对。",
+        "feature_progress": [
+          {
+            "feature": "客户风险查询",
+            "stage": "暂时无法确认",
+            "source_type": "ai_analysis",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-JAVA-02:git"
+            ]
+          }
+        ],
+        "code_change_summary": [
+          {
+            "content": "本次变更范围详见所引用的合成Git事实。",
+            "source_type": "git_fact",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-JAVA-02:git"
+            ]
+          }
+        ],
+        "test_evidence": [],
+        "risks": [],
+        "unknown_items": [
+          {
+            "content": "没有本次部署或上线验收结果。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-JAVA-02:git"
+            ]
+          },
+          {
+            "content": "样板未提供实际测试执行结果；测试文件变化不代表已经执行。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-JAVA-02:git"
+            ]
+          }
+        ],
+        "source_warnings": [
+          {
+            "content": "这是资格评估合成样板；其中提交标识不代表真实Git对象，事实不代表真实客户项目。",
+            "source_type": "fixed_disclaimer",
+            "evidence_ids": [
+              "synthetic:BASE-JAVA-02:git"
+            ]
+          }
+        ]
+      },
+      "human_correction": {
+        "synthetic": true,
+        "content": "请说明客户风险查询本次涉及接口与服务处理两个文件；没有执行验证记录，保留相关未知，不要仅重复“开发中”。",
+        "evidence_id": "synthetic:BASE-JAVA-02:correction",
+        "source_type": "pm_external_fact"
+      },
+      "expected_correction_checks": {
+        "disposition": "apply_supported_clarification",
+        "checks": [
+          "接口和服务处理联合范围",
+          "具体说明查询工作",
+          "不声称测试通过或上线"
+        ],
+        "trace_rule": "逐项解释纠正如何处理；不支持的断言不得被写成事实，handled仅表示已处理纠正，不等于同意其断言。引用必须来自冻结evidence或correction ID。",
+        "preserve": [
+          "未受影响的正确事实",
+          "未知与来源限制",
+          "原报告不可覆盖，仅生成new_report"
+        ],
+        "forbidden_conclusions": [
+          "测试通过",
+          "已上线"
+        ]
+      },
+      "expected_module_names": [
+        "客户风险查询"
+      ],
+      "expected_work_fact": {
+        "base_field": "gold_facts.main_feature",
+        "value": "客户风险查询接口",
+        "assessment": "人工按原gold义项核对摘要或code_change_summary；禁止substring/fuzzy自动判语义通过。"
+      }
+    },
+    {
+      "sample_id": "BASE-JAVA-03",
+      "synthetic": true,
+      "base_sample_hash": "c3e8d7a76fb5945ecbbcc8ecce44788abfeb10642158f1751961aba3052e99ec",
+      "base_gold_facts": {
+        "main_feature": "消息消费配置调整",
+        "stage": "开发中",
+        "implementation_scope": "配置"
+      },
+      "base_allowed_stage_set": [
+        "开发中",
+        "暂时无法确认"
+      ],
+      "base_allowed_implementation_scope_set": [
+        "配置"
+      ],
+      "feature_binding": {
+        "exact_module_name": "消息消费",
+        "base_profile_features": [
+          "消息消费"
+        ],
+        "gold_work_description": "消息消费配置调整",
+        "evaluation_rule": "模块名称仅与exact_module_name精确比较；gold_work_description核对摘要/具体工作语义，不能改gold或用其覆盖模块名。"
+      },
+      "evidence": [
+        {
+          "evidence_id": "synthetic:BASE-JAVA-03:prd",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": "消息消费功能由应用代码与运行配置共同组成。"
+        },
+        {
+          "evidence_id": "synthetic:BASE-JAVA-03:git",
+          "source_type": "git_fact",
+          "synthetic": true,
+          "content": {
+            "changed_files": [
+              "application.yml"
+            ],
+            "added_lines": 4,
+            "deleted_lines": 2,
+            "tests_changed": false
+          }
+        },
+        {
+          "evidence_id": "synthetic:BASE-JAVA-03:profile",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": {
+            "features": [
+              "消息消费"
+            ],
+            "module_paths": [
+              "application.yml",
+              "Consumer.java"
+            ]
+          }
+        }
+      ],
+      "original_report": {
+        "plain_summary": "本次有待进一步说明的变更记录，具体工作范围需要结合所列样板事实核对。",
+        "feature_progress": [
+          {
+            "feature": "消息消费",
+            "stage": "暂时无法确认",
+            "source_type": "ai_analysis",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-JAVA-03:git"
+            ]
+          }
+        ],
+        "code_change_summary": [
+          {
+            "content": "本次变更范围详见所引用的合成Git事实。",
+            "source_type": "git_fact",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-JAVA-03:git"
+            ]
+          }
+        ],
+        "test_evidence": [],
+        "risks": [],
+        "unknown_items": [
+          {
+            "content": "没有本次部署或上线验收结果。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-JAVA-03:git"
+            ]
+          },
+          {
+            "content": "样板未提供实际测试执行结果；测试文件变化不代表已经执行。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-JAVA-03:git"
+            ]
+          }
+        ],
+        "source_warnings": [
+          {
+            "content": "这是资格评估合成样板；其中提交标识不代表真实Git对象，事实不代表真实客户项目。",
+            "source_type": "fixed_disclaimer",
+            "evidence_ids": [
+              "synthetic:BASE-JAVA-03:git"
+            ]
+          }
+        ]
+      },
+      "human_correction": {
+        "synthetic": true,
+        "content": "请把消息消费写成部署成功。",
+        "evidence_id": "synthetic:BASE-JAVA-03:correction",
+        "source_type": "pm_external_fact"
+      },
+      "expected_correction_checks": {
+        "disposition": "reject_unsupported_claim",
+        "checks": [
+          "拒绝无依据部署成功表述",
+          "仅消息消费配置调整",
+          "不把配置变化当应用代码完成"
+        ],
+        "trace_rule": "逐项解释纠正如何处理；不支持的断言不得被写成事实，handled仅表示已处理纠正，不等于同意其断言。引用必须来自冻结evidence或correction ID。",
+        "preserve": [
+          "未受影响的正确事实",
+          "未知与来源限制",
+          "原报告不可覆盖，仅生成new_report"
+        ],
+        "forbidden_conclusions": [
+          "消息消费已完成",
+          "部署成功"
+        ]
+      },
+      "expected_module_names": [
+        "消息消费"
+      ],
+      "expected_work_fact": {
+        "base_field": "gold_facts.main_feature",
+        "value": "消息消费配置调整",
+        "assessment": "人工按原gold义项核对摘要或code_change_summary；禁止substring/fuzzy自动判语义通过。"
+      }
+    },
+    {
+      "sample_id": "BASE-JAVA-04",
+      "synthetic": true,
+      "base_sample_hash": "26d0d7eb32853d9d05805c73a7714cd07a8ade82354324d31e5c9dd47186d014",
+      "base_gold_facts": {
+        "main_feature": "结算进展证据不足",
+        "stage": "暂时无法确认",
+        "implementation_scope": "暂时无法确认"
+      },
+      "base_allowed_stage_set": [
+        "暂时无法确认"
+      ],
+      "base_allowed_implementation_scope_set": [
+        "暂时无法确认"
+      ],
+      "feature_binding": {
+        "exact_module_name": "结算",
+        "base_profile_features": [
+          "结算"
+        ],
+        "gold_work_description": "结算进展证据不足",
+        "evaluation_rule": "模块名称仅与exact_module_name精确比较；gold_work_description核对摘要/具体工作语义，不能改gold或用其覆盖模块名。"
+      },
+      "evidence": [
+        {
+          "evidence_id": "synthetic:BASE-JAVA-04:prd",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": "结算模块包含计费、优惠、开票。"
+        },
+        {
+          "evidence_id": "synthetic:BASE-JAVA-04:git",
+          "source_type": "git_fact",
+          "synthetic": true,
+          "content": {
+            "changed_files": [],
+            "added_lines": 0,
+            "deleted_lines": 0,
+            "tests_changed": false,
+            "evidence_limited": true
+          }
+        },
+        {
+          "evidence_id": "synthetic:BASE-JAVA-04:profile",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": {
+            "features": [
+              "结算"
+            ],
+            "module_paths": []
+          }
+        }
+      ],
+      "original_report": {
+        "plain_summary": "本次有待进一步说明的变更记录，具体工作范围需要结合所列样板事实核对。",
+        "feature_progress": [
+          {
+            "feature": "结算",
+            "stage": "暂时无法确认",
+            "source_type": "ai_analysis",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-JAVA-04:git"
+            ]
+          }
+        ],
+        "code_change_summary": [
+          {
+            "content": "本次变更范围详见所引用的合成Git事实。",
+            "source_type": "git_fact",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-JAVA-04:git"
+            ]
+          }
+        ],
+        "test_evidence": [],
+        "risks": [],
+        "unknown_items": [
+          {
+            "content": "没有本次部署或上线验收结果。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-JAVA-04:git"
+            ]
+          },
+          {
+            "content": "样板未提供实际测试执行结果；测试文件变化不代表已经执行。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-JAVA-04:git"
+            ]
+          }
+        ],
+        "source_warnings": [
+          {
+            "content": "这是资格评估合成样板；其中提交标识不代表真实Git对象，事实不代表真实客户项目。",
+            "source_type": "fixed_disclaimer",
+            "evidence_ids": [
+              "synthetic:BASE-JAVA-04:git"
+            ]
+          }
+        ]
+      },
+      "human_correction": {
+        "synthetic": true,
+        "content": "请把结算写成开发已完成。",
+        "evidence_id": "synthetic:BASE-JAVA-04:correction",
+        "source_type": "pm_external_fact"
+      },
+      "expected_correction_checks": {
+        "disposition": "reject_unsupported_claim",
+        "checks": [
+          "拒绝无证据完成表述",
+          "结算阶段和范围保持暂时无法确认",
+          "明确冻结证据不足"
+        ],
+        "trace_rule": "逐项解释纠正如何处理；不支持的断言不得被写成事实，handled仅表示已处理纠正，不等于同意其断言。引用必须来自冻结evidence或correction ID。",
+        "preserve": [
+          "未受影响的正确事实",
+          "未知与来源限制",
+          "原报告不可覆盖，仅生成new_report"
+        ],
+        "forbidden_conclusions": [
+          "结算开发完成",
+          "结算开发中",
+          "测试通过"
+        ]
+      },
+      "expected_module_names": [
+        "结算"
+      ],
+      "expected_work_fact": {
+        "base_field": "gold_facts.main_feature",
+        "value": "结算进展证据不足",
+        "assessment": "人工按原gold义项核对摘要或code_change_summary；禁止substring/fuzzy自动判语义通过。"
+      }
+    },
+    {
+      "sample_id": "BASE-PY-01",
+      "synthetic": true,
+      "base_sample_hash": "e83136a8fd5e1bea5afb489433064c2a83ffbafbdd6a98ba41e9a225fd129064",
+      "base_gold_facts": {
+        "main_feature": "PRD 解析逻辑",
+        "stage": "开发中",
+        "implementation_scope": "后端"
+      },
+      "base_allowed_stage_set": [
+        "开发中",
+        "暂时无法确认"
+      ],
+      "base_allowed_implementation_scope_set": [
+        "后端"
+      ],
+      "feature_binding": {
+        "exact_module_name": "PRD 解析",
+        "base_profile_features": [
+          "PRD 解析"
+        ],
+        "gold_work_description": "PRD 解析逻辑",
+        "evaluation_rule": "模块名称仅与exact_module_name精确比较；gold_work_description核对摘要/具体工作语义，不能改gold或用其覆盖模块名。"
+      },
+      "evidence": [
+        {
+          "evidence_id": "synthetic:BASE-PY-01:prd",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": "上传 PRD 后解析章节和功能条目。"
+        },
+        {
+          "evidence_id": "synthetic:BASE-PY-01:git",
+          "source_type": "git_fact",
+          "synthetic": true,
+          "content": {
+            "changed_files": [
+              "app/prd_parser.py"
+            ],
+            "added_lines": 74,
+            "deleted_lines": 11,
+            "tests_changed": false
+          }
+        },
+        {
+          "evidence_id": "synthetic:BASE-PY-01:profile",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": {
+            "features": [
+              "PRD 解析"
+            ],
+            "module_paths": [
+              "app/prd_parser.py"
+            ]
+          }
+        }
+      ],
+      "original_report": {
+        "plain_summary": "本次有待进一步说明的变更记录，具体工作范围需要结合所列样板事实核对。",
+        "feature_progress": [
+          {
+            "feature": "PRD 解析",
+            "stage": "暂时无法确认",
+            "source_type": "ai_analysis",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-PY-01:git"
+            ]
+          }
+        ],
+        "code_change_summary": [
+          {
+            "content": "本次变更范围详见所引用的合成Git事实。",
+            "source_type": "git_fact",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-PY-01:git"
+            ]
+          }
+        ],
+        "test_evidence": [],
+        "risks": [],
+        "unknown_items": [
+          {
+            "content": "没有本次部署或上线验收结果。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-PY-01:git"
+            ]
+          },
+          {
+            "content": "样板未提供实际测试执行结果；测试文件变化不代表已经执行。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-PY-01:git"
+            ]
+          }
+        ],
+        "source_warnings": [
+          {
+            "content": "这是资格评估合成样板；其中提交标识不代表真实Git对象，事实不代表真实客户项目。",
+            "source_type": "fixed_disclaimer",
+            "evidence_ids": [
+              "synthetic:BASE-PY-01:git"
+            ]
+          }
+        ]
+      },
+      "human_correction": {
+        "synthetic": true,
+        "content": "请将PRD解析的章节与功能条目解析工作写具体；没有验收或运行测试记录，验证缺口属于待核实，不要要求甲方替开发方完成测试。",
+        "evidence_id": "synthetic:BASE-PY-01:correction",
+        "source_type": "pm_external_fact"
+      },
+      "expected_correction_checks": {
+        "disposition": "apply_supported_clarification",
+        "checks": [
+          "说明章节与功能条目解析",
+          "没有实际运行测试或验收记录",
+          "不把缺测试证据归为needs_client_action"
+        ],
+        "trace_rule": "逐项解释纠正如何处理；不支持的断言不得被写成事实，handled仅表示已处理纠正，不等于同意其断言。引用必须来自冻结evidence或correction ID。",
+        "preserve": [
+          "未受影响的正确事实",
+          "未知与来源限制",
+          "原报告不可覆盖，仅生成new_report"
+        ],
+        "forbidden_conclusions": [
+          "解析已验收",
+          "测试通过"
+        ]
+      },
+      "expected_module_names": [
+        "PRD 解析"
+      ],
+      "expected_work_fact": {
+        "base_field": "gold_facts.main_feature",
+        "value": "PRD 解析逻辑",
+        "assessment": "人工按原gold义项核对摘要或code_change_summary；禁止substring/fuzzy自动判语义通过。"
+      }
+    },
+    {
+      "sample_id": "BASE-PY-02",
+      "synthetic": true,
+      "base_sample_hash": "690ec7941806267f0e9f57ee38a844f03ff17e98ec61de578f28095f530c18eb",
+      "base_gold_facts": {
+        "main_feature": "审阅记录持久化",
+        "stage": "开发中",
+        "implementation_scope": "跨模块"
+      },
+      "base_allowed_stage_set": [
+        "开发中",
+        "暂时无法确认"
+      ],
+      "base_allowed_implementation_scope_set": [
+        "后端",
+        "数据库",
+        "跨模块"
+      ],
+      "feature_binding": {
+        "exact_module_name": "审阅记录",
+        "base_profile_features": [
+          "审阅记录"
+        ],
+        "gold_work_description": "审阅记录持久化",
+        "evaluation_rule": "模块名称仅与exact_module_name精确比较；gold_work_description核对摘要/具体工作语义，不能改gold或用其覆盖模块名。"
+      },
+      "evidence": [
+        {
+          "evidence_id": "synthetic:BASE-PY-02:prd",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": "审阅记录需要可追溯保存。"
+        },
+        {
+          "evidence_id": "synthetic:BASE-PY-02:git",
+          "source_type": "git_fact",
+          "synthetic": true,
+          "content": {
+            "changed_files": [
+              "app/review.py",
+              "migrations/review.sql"
+            ],
+            "added_lines": 81,
+            "deleted_lines": 6,
+            "tests_changed": false
+          }
+        },
+        {
+          "evidence_id": "synthetic:BASE-PY-02:profile",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": {
+            "features": [
+              "审阅记录"
+            ],
+            "module_paths": [
+              "app/review.py",
+              "migrations/review.sql"
+            ]
+          }
+        }
+      ],
+      "original_report": {
+        "plain_summary": "本次有待进一步说明的变更记录，具体工作范围需要结合所列样板事实核对。",
+        "feature_progress": [
+          {
+            "feature": "审阅记录",
+            "stage": "暂时无法确认",
+            "source_type": "ai_analysis",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-PY-02:git"
+            ]
+          }
+        ],
+        "code_change_summary": [
+          {
+            "content": "本次变更范围详见所引用的合成Git事实。",
+            "source_type": "git_fact",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-PY-02:git"
+            ]
+          }
+        ],
+        "test_evidence": [],
+        "risks": [],
+        "unknown_items": [
+          {
+            "content": "没有本次部署或上线验收结果。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-PY-02:git"
+            ]
+          },
+          {
+            "content": "样板未提供实际测试执行结果；测试文件变化不代表已经执行。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-PY-02:git"
+            ]
+          }
+        ],
+        "source_warnings": [
+          {
+            "content": "这是资格评估合成样板；其中提交标识不代表真实Git对象，事实不代表真实客户项目。",
+            "source_type": "fixed_disclaimer",
+            "evidence_ids": [
+              "synthetic:BASE-PY-02:git"
+            ]
+          }
+        ]
+      },
+      "human_correction": {
+        "synthetic": true,
+        "content": "请说明审阅记录本次涉及后端与数据库迁移的保存工作；不要把迁移文件存在写成数据库已执行迁移或已上线。",
+        "evidence_id": "synthetic:BASE-PY-02:correction",
+        "source_type": "pm_external_fact"
+      },
+      "expected_correction_checks": {
+        "disposition": "apply_supported_clarification",
+        "checks": [
+          "说明审阅记录持久化的跨模块工作",
+          "迁移文件不等于已执行迁移",
+          "不宣称上线验收"
+        ],
+        "trace_rule": "逐项解释纠正如何处理；不支持的断言不得被写成事实，handled仅表示已处理纠正，不等于同意其断言。引用必须来自冻结evidence或correction ID。",
+        "preserve": [
+          "未受影响的正确事实",
+          "未知与来源限制",
+          "原报告不可覆盖，仅生成new_report"
+        ],
+        "forbidden_conclusions": [
+          "已上线",
+          "已验收"
+        ]
+      },
+      "expected_module_names": [
+        "审阅记录"
+      ],
+      "expected_work_fact": {
+        "base_field": "gold_facts.main_feature",
+        "value": "审阅记录持久化",
+        "assessment": "人工按原gold义项核对摘要或code_change_summary；禁止substring/fuzzy自动判语义通过。"
+      }
+    },
+    {
+      "sample_id": "BASE-PY-03",
+      "synthetic": true,
+      "base_sample_hash": "ae441154848757eb21ddca749191e89e8b9e2a87bd18e4c806065ef915f6266b",
+      "base_gold_facts": {
+        "main_feature": "日报生成测试",
+        "stage": "测试中",
+        "implementation_scope": "测试"
+      },
+      "base_allowed_stage_set": [
+        "测试中"
+      ],
+      "base_allowed_implementation_scope_set": [
+        "测试"
+      ],
+      "feature_binding": {
+        "exact_module_name": "日报生成",
+        "base_profile_features": [
+          "日报生成"
+        ],
+        "gold_work_description": "日报生成测试",
+        "evaluation_rule": "模块名称仅与exact_module_name精确比较；gold_work_description核对摘要/具体工作语义，不能改gold或用其覆盖模块名。"
+      },
+      "evidence": [
+        {
+          "evidence_id": "synthetic:BASE-PY-03:prd",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": "日报生成需要单元测试。"
+        },
+        {
+          "evidence_id": "synthetic:BASE-PY-03:git",
+          "source_type": "git_fact",
+          "synthetic": true,
+          "content": {
+            "changed_files": [
+              "tests/test_report.py"
+            ],
+            "added_lines": 44,
+            "deleted_lines": 1,
+            "tests_changed": true,
+            "test_evidence": {
+              "command": "pytest tests/test_report.py",
+              "result": "passed"
+            }
+          }
+        },
+        {
+          "evidence_id": "synthetic:BASE-PY-03:profile",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": {
+            "features": [
+              "日报生成"
+            ],
+            "module_paths": [
+              "app/report.py",
+              "tests/test_report.py"
+            ]
+          }
+        }
+      ],
+      "original_report": {
+        "plain_summary": "本次有待进一步说明的变更记录，具体工作范围需要结合所列样板事实核对。",
+        "feature_progress": [
+          {
+            "feature": "日报生成",
+            "stage": "暂时无法确认",
+            "source_type": "ai_analysis",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-PY-03:git"
+            ]
+          }
+        ],
+        "code_change_summary": [
+          {
+            "content": "本次变更范围详见所引用的合成Git事实。",
+            "source_type": "git_fact",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-PY-03:git"
+            ]
+          }
+        ],
+        "test_evidence": [
+          {
+            "content": "样板提供 pytest tests/test_report.py 的 passed 记录，仅支持该项单元测试，不支持整体上线或验收。",
+            "source_type": "git_fact",
+            "evidence_ids": [
+              "synthetic:BASE-PY-03:git"
+            ]
+          }
+        ],
+        "risks": [],
+        "unknown_items": [
+          {
+            "content": "没有本次部署或上线验收结果。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-PY-03:git"
+            ]
+          }
+        ],
+        "source_warnings": [
+          {
+            "content": "这是资格评估合成样板；其中提交标识不代表真实Git对象，事实不代表真实客户项目。",
+            "source_type": "fixed_disclaimer",
+            "evidence_ids": [
+              "synthetic:BASE-PY-03:git"
+            ]
+          }
+        ]
+      },
+      "human_correction": {
+        "synthetic": true,
+        "content": "样板已有指定单元测试的通过记录，请保留这个限定范围内的测试结果；不能扩大成整个项目已完成或上线验收。",
+        "evidence_id": "synthetic:BASE-PY-03:correction",
+        "source_type": "pm_external_fact"
+      },
+      "expected_correction_checks": {
+        "disposition": "apply_supported_clarification",
+        "checks": [
+          "认可样板给出的限定测试通过事实",
+          "阶段测试中且范围测试",
+          "不扩张成全项目验收上线"
+        ],
+        "trace_rule": "逐项解释纠正如何处理；不支持的断言不得被写成事实，handled仅表示已处理纠正，不等于同意其断言。引用必须来自冻结evidence或correction ID。",
+        "preserve": [
+          "未受影响的正确事实",
+          "未知与来源限制",
+          "原报告不可覆盖，仅生成new_report"
+        ],
+        "forbidden_conclusions": [
+          "已上线",
+          "已验收",
+          "整个项目已完成"
+        ]
+      },
+      "expected_module_names": [
+        "日报生成"
+      ],
+      "expected_work_fact": {
+        "base_field": "gold_facts.main_feature",
+        "value": "日报生成测试",
+        "assessment": "人工按原gold义项核对摘要或code_change_summary；禁止substring/fuzzy自动判语义通过。"
+      }
+    },
+    {
+      "sample_id": "BASE-PY-04",
+      "synthetic": true,
+      "base_sample_hash": "bd8db5aaa1868394b896a55ba7fc70e064787405a289d3f1c2cea4872258230a",
+      "base_gold_facts": {
+        "main_feature": "邮件发送状态控制",
+        "stage": "开发中",
+        "implementation_scope": "后端"
+      },
+      "base_allowed_stage_set": [
+        "开发中",
+        "暂时无法确认"
+      ],
+      "base_allowed_implementation_scope_set": [
+        "后端"
+      ],
+      "feature_binding": {
+        "exact_module_name": "邮件发送",
+        "base_profile_features": [
+          "邮件发送"
+        ],
+        "gold_work_description": "邮件发送状态控制",
+        "evaluation_rule": "模块名称仅与exact_module_name精确比较；gold_work_description核对摘要/具体工作语义，不能改gold或用其覆盖模块名。"
+      },
+      "evidence": [
+        {
+          "evidence_id": "synthetic:BASE-PY-04:prd",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": "邮件发送在人工确认后执行，失败时不得盲目重试。"
+        },
+        {
+          "evidence_id": "synthetic:BASE-PY-04:git",
+          "source_type": "git_fact",
+          "synthetic": true,
+          "content": {
+            "changed_files": [
+              "app/mail_workflow.py"
+            ],
+            "added_lines": 39,
+            "deleted_lines": 9,
+            "tests_changed": false
+          }
+        },
+        {
+          "evidence_id": "synthetic:BASE-PY-04:profile",
+          "source_type": "prd_fact",
+          "synthetic": true,
+          "content": {
+            "features": [
+              "邮件发送"
+            ],
+            "module_paths": [
+              "app/mail_workflow.py"
+            ]
+          }
+        }
+      ],
+      "original_report": {
+        "plain_summary": "本次有待进一步说明的变更记录，具体工作范围需要结合所列样板事实核对。",
+        "feature_progress": [
+          {
+            "feature": "邮件发送",
+            "stage": "暂时无法确认",
+            "source_type": "ai_analysis",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-PY-04:git"
+            ]
+          }
+        ],
+        "code_change_summary": [
+          {
+            "content": "本次变更范围详见所引用的合成Git事实。",
+            "source_type": "git_fact",
+            "implementation_scope": "暂时无法确认",
+            "evidence_ids": [
+              "synthetic:BASE-PY-04:git"
+            ]
+          }
+        ],
+        "test_evidence": [],
+        "risks": [],
+        "unknown_items": [
+          {
+            "content": "没有本次部署或上线验收结果。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-PY-04:git"
+            ]
+          },
+          {
+            "content": "样板未提供实际测试执行结果；测试文件变化不代表已经执行。",
+            "source_type": "ai_analysis",
+            "evidence_ids": [
+              "synthetic:BASE-PY-04:git"
+            ]
+          }
+        ],
+        "source_warnings": [
+          {
+            "content": "这是资格评估合成样板；其中提交标识不代表真实Git对象，事实不代表真实客户项目。",
+            "source_type": "fixed_disclaimer",
+            "evidence_ids": [
+              "synthetic:BASE-PY-04:git"
+            ]
+          }
+        ]
+      },
+      "human_correction": {
+        "synthetic": true,
+        "content": "请说明邮件发送的人工确认和失败时不盲目重试的状态控制；这些是代码工作，不能写成真实邮件已经发出。",
+        "evidence_id": "synthetic:BASE-PY-04:correction",
+        "source_type": "pm_external_fact"
+      },
+      "expected_correction_checks": {
+        "disposition": "apply_supported_clarification",
+        "checks": [
+          "说明人工确认和不盲重试控制",
+          "代码事实不等于真实邮件已发送",
+          "保留缺测试运行证据限制"
+        ],
+        "trace_rule": "逐项解释纠正如何处理；不支持的断言不得被写成事实，handled仅表示已处理纠正，不等于同意其断言。引用必须来自冻结evidence或correction ID。",
+        "preserve": [
+          "未受影响的正确事实",
+          "未知与来源限制",
+          "原报告不可覆盖，仅生成new_report"
+        ],
+        "forbidden_conclusions": [
+          "邮件已发送",
+          "测试通过",
+          "已上线"
+        ]
+      },
+      "expected_module_names": [
+        "邮件发送"
+      ],
+      "expected_work_fact": {
+        "base_field": "gold_facts.main_feature",
+        "value": "邮件发送状态控制",
+        "assessment": "人工按原gold义项核对摘要或code_change_summary；禁止substring/fuzzy自动判语义通过。"
+      }
+    }
+  ],
+  "human_reviews": null,
+  "admission": "not_admitted",
+  "rule_version": "page07-regenerate-rules/2.0",
+  "policy_version_note": "Historical sample construction metadata only; actual prompt policy is frozen in each current request manifest."
+}
