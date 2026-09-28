@@ -49,6 +49,16 @@ const projectContextName = computed(() => (
 const showModelQuickSetup = computed(() => props.currentProjectId != null && ['modules', 'task'].includes(props.currentView))
 const showOnboarding = computed(() => tourOpen.value && props.currentView !== 'board')
 
+function updateProjectContext(project) {
+  if (props.currentProjectId == null || project?.id == null
+    || String(project.id) !== String(props.currentProjectId)) return
+  // The save response is newer than any shell read already in flight.
+  projectReadToken += 1
+  currentProject.value = project
+}
+
+defineExpose({ updateProjectContext })
+
 async function loadProjectContext(projectId) {
   const token = ++projectReadToken
   if (projectId == null) {

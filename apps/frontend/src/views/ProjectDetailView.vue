@@ -13,6 +13,7 @@ const props = defineProps({
   projectId: { type: [Number, String], default: null },
   section: { type: String, default: 'home' }
 })
+const emit = defineEmits(['project-saved'])
 
 const detailState = ref('loading')
 const detail = ref(null)
@@ -236,6 +237,7 @@ async function saveProject() {
     editName.value = body.project.name
     editGitUrl.value = body.project.git_url || ''
     editBranch.value = body.project.branch || ''
+    emit('project-saved', body.project)
     showMessage(body.changed ? '项目配置已保存' : '内容未变化', body.changed ? 'success' : 'info')
     await loadSummary(id)
   } catch (error) {

@@ -102,7 +102,8 @@ test('Page07 reanalysis requires visible exact scope and explicit one-shot Human
   })
 
   await openPage(page)
-  await expect(page.getByRole('heading', { name: '新任务已排队 · 尚未调用 AI' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '重分析任务等待处理', exact: true })).toBeVisible()
+  expect(sequence).toEqual([])
   await page.getByRole('button', { name: '准备 AI 重分析发送范围' }).click()
   const dialog = page.getByRole('dialog', { name: '确认 AI 重分析 的发送范围' })
   await expect(dialog).toBeVisible()

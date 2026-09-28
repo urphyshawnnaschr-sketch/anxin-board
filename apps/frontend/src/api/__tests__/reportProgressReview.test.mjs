@@ -30,7 +30,7 @@ test('blank reason, non-git refs, foreign module and invalid stages block submis
 })
 test('reload invalidates corrections and approval only includes validated nonempty corrections',()=>{
  const reset = source.match(/function invalidateLoadedAuthority\(\) \{[^]*?\n\}/)[0]
- const scope = Object.fromEntries(['bundle','approvalSnapshot','reanalysisBundle','approvalOpen','correctionOpen','approvalSaving','modelSendOpen','modelSendPreview','modelSendFlow','modelSendAck','progressEdits'].map(k=>[k,{value:{old:true}}]))
+ const scope = Object.fromEntries(['bundle','approvalSnapshot','reanalysisBundle','approvalOpen','correctionOpen','cancellationOpen','approvalSaving','modelSendOpen','modelSendPreview','modelSendFlow','modelSendAck','progressEdits'].map(k=>[k,{value:{old:true}}]))
  vm.runInNewContext(`${reset}; invalidateLoadedAuthority()`,scope)
  assert.equal(Object.keys(scope.progressEdits.value).length,0)
  assert.match(source,/progress_corrections: corrections/)

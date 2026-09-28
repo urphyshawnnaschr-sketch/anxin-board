@@ -27,6 +27,7 @@ const projectDetailPages = new Set(['home', 'setup', 'modules'])
 const initialRoute = parseHash()
 const currentView = ref(initialRoute.view)
 const currentProjectId = ref(initialRoute.id)
+const appShell = ref(null)
 const sessionChecked = ref(false)
 const sessionAvailable = ref(false)
 
@@ -68,6 +69,10 @@ function handleRoute() {
   currentProjectId.value = route.id
 }
 
+function handleProjectSaved(project) {
+  appShell.value?.updateProjectContext(project)
+}
+
 onMounted(() => {
   void ensureLocalSession().then(session => {
     sessionAvailable.value = Boolean(session)
@@ -82,7 +87,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <AppShell :current-view="currentView" :current-project-id="currentProjectId">
+  <AppShell ref="appShell" :current-view="currentView" :current-project-id="currentProjectId">
     <aside v-if="sessionChecked && !sessionAvailable" class="local-session-notice" role="status">
       <strong>当前窗口仅供查看</strong>
       <p>要检查代码或保存操作，请从桌面“安心看板”快捷方式重新打开，并使用它打开的浏览器窗口。已有分析和项目数据会保留。</p>
@@ -92,6 +97,7 @@ onBeforeUnmount(() => {
       v-else-if="projectDetailPages.has(currentView) && currentProjectId != null"
       :project-id="currentProjectId"
       :section="currentView"
+      @project-saved="handleProjectSaved"
     />
     <GitEvidenceView
       v-else-if="currentView === 'git' && currentProjectId != null"

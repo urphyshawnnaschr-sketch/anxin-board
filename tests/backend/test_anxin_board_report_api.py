@@ -410,7 +410,11 @@ def test_history_endpoint_source_is_only_thin_formal_seam_adapter():
 
 def test_no_unapproved_public_write_route_exists_for_formal_reports(client):
     allowed_write_routes = {
-        ("/api/projects/{project_id}/anxin-board/generate", "POST")
+        ("/api/projects/{project_id}/anxin-board/generate", "POST"),
+        (
+            "/api/projects/{project_id}/anxin-board/reports/{report_version_id}/module-narrative",
+            "POST",
+        ),
     }
     forbidden_methods = {"POST", "PUT", "PATCH", "DELETE"}
     offending = []

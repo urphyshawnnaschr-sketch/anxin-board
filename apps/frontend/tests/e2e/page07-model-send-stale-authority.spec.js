@@ -127,13 +127,14 @@ test('Page07 authority reload invalidates an in-flight send-scope preview before
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.addInitScript(() => sessionStorage.setItem('anxinboard:local-browser-session:v1', 'page07-stale-authority-session'))
   await page.goto('/#/projects/1/review', { waitUntil: 'networkidle' })
-  await expect(page.getByRole('heading', { name: '新任务已排队 · 尚未调用 AI' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '重分析任务等待处理', exact: true })).toBeVisible()
+  expect(sequence).toEqual([])
 
   await page.getByRole('button', { name: '准备 AI 重分析发送范围' }).click()
   await expect.poll(() => sequence.includes('preview')).toBe(true)
 
   await page.getByRole('button', { name: '刷新状态' }).click()
-  await expect(page.getByRole('heading', { name: '新任务已排队 · 尚未调用 AI' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '重分析任务等待处理', exact: true })).toBeVisible()
   releasePreview()
 
   await expect(page.getByRole('dialog', { name: '确认 AI 重分析 的发送范围' })).toHaveCount(0)
