@@ -22,7 +22,7 @@ async function mount(page, { binding = unbound, statuses = ['wait'], expiresAt =
     const path = new URL(request.url()).pathname
     const body = request.method() === 'POST' ? request.postDataJSON() : null
     calls.push({ path, method: request.method(), body, headers: request.headers() })
-    if (path.endsWith('/wechat-settings')) return route.fulfill({ json: { ...currentBinding, configured: currentBinding.binding_state === 'ready', token_configured: currentBinding.binding_state === 'ready', gateway_url: '', session_key: '' } })
+    if (path.endsWith('/wechat-settings')) return route.fulfill({ json: { ...currentBinding, configured: ['ready', 'awaiting_message'].includes(currentBinding.binding_state), token_configured: ['ready', 'awaiting_message'].includes(currentBinding.binding_state), gateway_url: '', session_key: '' } })
     if (path.endsWith('/wechat-history')) return route.fulfill({ json: [] })
     if (path.endsWith('/wechat-binding')) return route.fulfill({ json: currentBinding })
     if (path.endsWith('/wechat-login/start')) {
@@ -44,7 +44,7 @@ async function mount(page, { binding = unbound, statuses = ['wait'], expiresAt =
   })
   await page.goto('/tests/e2e/fixtures/wechat-panel.html')
   await expect(page.getByTestId('wechat-binding')).toBeVisible()
-  await expect(page.getByRole('button', { name: binding.binding_state === 'ready' ? '重新绑定微信' : '绑定微信', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: ['ready', 'awaiting_message'].includes(binding.binding_state) ? '重新绑定微信' : '绑定微信', exact: true })).toBeEnabled()
   return calls
 }
 
@@ -55,16 +55,15 @@ test('默认只需绑定微信，高级技术配置折叠且不自动创建二�
   expect(calls.filter(c => c.method === 'POST')).toHaveLength(0)
 })
 
-test('扫码到本人消息确认后才允许正式预览，二维码仅从受保护本地图片读取', async ({ page }) => {
-  const calls = await mount(page, { statuses: ['scaned', 'awaiting_message', 'ready'] })
+test('扫码确认后无需首条消息即可预览，二维码仅从受保护本地图片读取', async ({ page }) => {
+  const calls = await mount(page, { statuses: ['scaned', 'awaiting_message'] })
   await page.getByRole('button', { name: '绑定微信', exact: true }).click()
   const qr = page.getByRole('img', { name: '微信绑定二维码' })
   await expect(qr).toBeVisible()
   expect(await qr.getAttribute('src')).toMatch(/^blob:/)
   await expect(page.getByTestId('wechat-binding')).toContainText('请在微信中确认', { timeout: 7000 })
-  await expect(page.getByTestId('wechat-binding')).toContainText('给 ClawBot 发一句话', { timeout: 7000 })
-  await expect(page.getByRole('button', { name: '生成图片预览', exact: true })).toBeDisabled()
-  await expect(page.getByTestId('wechat-binding')).toContainText('微信已绑定，可以接收报告图片', { timeout: 7000 })
+  await expect(page.getByTestId('wechat-binding')).toContainText('微信已绑定，可直接生成图片预览并确认发送', { timeout: 7000 })
+  await expect(page.getByTestId('wechat-binding')).not.toContainText('给 ClawBot 发一句话')
   await expect(qr).toHaveCount(0)
   await expect(page.getByRole('button', { name: '生成图片预览', exact: true })).toBeEnabled()
   expect(calls.find(c => c.path.endsWith('/qr.png')).headers['x-anxin-session']).toBe('synthetic-session')
@@ -83,7 +82,7 @@ test('取消会清理二维码并拒绝迟到的已绑定响应', async ({ page 
   await page.getByRole('button', { name: '取消绑定', exact: true }).click()
   release()
   await expect(page.getByRole('img', { name: '微信绑定二维码' })).toHaveCount(0)
-  await expect(page.getByTestId('wechat-binding')).not.toContainText('微信已绑定，可以接收报告图片')
+  await expect(page.getByTestId('wechat-binding')).not.toContainText('微信已绑定，可直接生成图片预览并确认发送')
   expect(calls.filter(c => c.path.endsWith('/wechat-login/cancel'))).toHaveLength(1)
   expect(await page.evaluate(() => window.revokedWechatUrls.length)).toBeGreaterThan(0)
 })
@@ -143,13 +142,23 @@ test('需要验证码时只接受人工输入并在提交后清空', async ({ pa
   await expect(page.getByTestId('wechat-binding')).not.toContainText('123456')
 })
 
-test('重新打开待消息绑定只读展示，用户确认发过消息后再检查', async ({ page }) => {
+test('重新打开无会话绑定可直接预览，仅人工选择时刷新会话', async ({ page }) => {
   const calls = await mount(page, { binding: { ...ready, binding_state: 'awaiting_message', context_ready: false, version_no: 1 } })
-  await expect(page.getByTestId('wechat-binding')).toContainText('给 ClawBot 发一句话')
+  await expect(page.getByTestId('wechat-binding')).toContainText('微信已绑定，可直接生成图片预览并确认发送')
+  await expect(page.getByRole('button', { name: '生成图片预览', exact: true })).toBeEnabled()
   expect(calls.filter(c => c.method === 'POST')).toHaveLength(0)
-  await page.getByRole('button', { name: '我已发送，检查绑定', exact: true }).click()
-  await expect(page.getByTestId('wechat-binding')).toContainText('微信已绑定，可以接收报告图片')
+  await page.getByRole('button', { name: '刷新会话（可选）', exact: true }).click()
+  await expect(page.getByTestId('wechat-binding')).toContainText('微信已绑定，可直接生成图片预览并确认发送')
   expect(calls.find(c => c.path.endsWith('/wechat-binding/refresh')).body).toEqual({ expected_version_no: 1 })
+})
+
+test('可选刷新未收到消息仍可直接预览，不要求先发消息', async ({ page }) => {
+  const calls = await mount(page, { binding: { ...ready, binding_state: 'awaiting_message', context_ready: false, version_no: 1 } })
+  await page.route('**/api/projects/1/wechat-binding/refresh', route => route.fulfill({ json: { ...ready, binding_state: 'awaiting_message', context_ready: false, version_no: 1 } }))
+  await page.getByRole('button', { name: '刷新会话（可选）', exact: true }).click()
+  await expect(page.getByTestId('wechat-binding')).toContainText('尚未收到新的会话消息，仍可直接生成预览并确认发送')
+  await expect(page.getByRole('button', { name: '生成图片预览', exact: true })).toBeEnabled()
+  expect(calls.filter(c => c.path.endsWith('/wechat-send'))).toHaveLength(0)
 })
 
 test('轮询失败停止并只展示安全提示', async ({ page }) => {
@@ -189,14 +198,28 @@ test('离开组件停止扫码并清理图片，不请求新二维码', async ({
   expect(await page.evaluate(() => window.revokedWechatUrls.length)).toBe(1)
 })
 
-test('取消扫码后保留服务端已确认的待消息绑定', async ({ page }) => {
+test('扫码已绑定就结束轮询，旧二维码到期不取消有效绑定', async ({ page }) => {
+  await page.clock.install()
   const calls = await mount(page, { statuses: ['awaiting_message'] })
   await page.getByRole('button', { name: '绑定微信', exact: true }).click()
-  await expect(page.getByTestId('wechat-binding')).toContainText('给 ClawBot 发一句话', { timeout: 7000 })
-  await page.getByRole('button', { name: '取消绑定', exact: true }).click()
-  await expect(page.getByRole('button', { name: '我已发送，检查绑定', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: '生成图片预览', exact: true })).toBeDisabled()
+  await expect(page.getByRole('img', { name: '微信绑定二维码' })).toBeVisible()
+  await page.clock.fastForward(2100)
+  await expect(page.getByRole('button', { name: '取消绑定', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '生成图片预览', exact: true })).toBeEnabled()
+  await page.clock.fastForward(125_000)
+  await expect(page.getByRole('button', { name: '生成图片预览', exact: true })).toBeEnabled()
+  expect(calls.filter(c => c.path.endsWith('/wechat-login/poll'))).toHaveLength(1)
+  expect(calls.filter(c => c.path.endsWith('/wechat-login/cancel'))).toHaveLength(0)
+  expect(calls.filter(c => c.path.endsWith('/wechat-binding/refresh'))).toHaveLength(0)
   expect(calls.filter(c => c.path.endsWith('/wechat-binding/disconnect'))).toHaveLength(0)
+})
+
+test('扫码响应缺少有效绑定时不能把无会话状态当作成功', async ({ page }) => {
+  const calls = await mount(page, { poll: route => route.fulfill({ json: { flow_id: 'synthetic-flow', status: 'awaiting_message', expires_at: expiry(), binding: null } }) })
+  await page.getByRole('button', { name: '绑定微信', exact: true }).click()
+  await expect(page.getByTestId('wechat-binding')).toContainText('暂时无法确认绑定状态', { timeout: 7000 })
+  await expect(page.getByRole('button', { name: '生成图片预览', exact: true })).toBeDisabled()
+  expect(calls.filter(c => c.path.endsWith('/wechat-login/poll'))).toHaveLength(1)
 })
 
 test('进入扫码前清除已有正式图片预览', async ({ page }) => {
@@ -212,6 +235,6 @@ test('进入扫码前清除已有正式图片预览', async ({ page }) => {
   await page.getByRole('button', { name: '重新绑定微信', exact: true }).click()
   await expect(page.getByRole('button', { name: '生成图片预览', exact: true })).toBeDisabled()
   await expect(page.getByTestId('wechat-preview')).toHaveCount(0)
-  await expect(page.getByText('微信已绑定，可以接收报告图片。', { exact: true })).toHaveCount(0)
+  await expect(page.getByTestId('wechat-binding')).not.toContainText('微信已绑定，可直接生成图片预览并确认发送')
   expect(calls.filter(c => c.path.endsWith('/wechat-send'))).toHaveLength(0)
 })

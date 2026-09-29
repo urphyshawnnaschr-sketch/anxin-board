@@ -4,7 +4,7 @@
 
 ## 客户流程
 
-默认显示“绑定微信”。点击后由后端向腾讯官方登录接口取得短期二维码，在本机编码为 PNG。客户自行在微信确认授权；需要配对码时由客户填写。扫码成功后页面引导扫码者向 ClawBot 发一条消息，获得发送上下文，随后显示“微信已绑定，可以接收报告图片”。用户查看已正式确认报告的全部图片，再确认发送。绑定本身不发送报告、不自动回复、不调用大模型。
+默认显示“绑定微信”。点击后由后端向腾讯官方登录接口取得短期二维码，在本机编码为 PNG。客户自行在微信确认授权；需要配对码时由客户填写。扫码成功后即结束扫码轮询，用户可查看已正式确认报告的全部图片，再确认发送，无需先发消息。有已保存的本人上下文时携带，否则按官方发送实现省略该可选字段；接口是否接受和手机是否收到分别核验。绑定本身不发送报告、不自动回复、不调用大模型。
 
 原有 OpenClaw 表单位于折叠的高级入口。扫码绑定能否和另一台 OpenClaw 同时保持登录没有正式保证，因此开始绑定前明确说明可能影响原连接；需要保留原部署时使用高级入口。这里不承诺替用户迁移或修改外部 OpenClaw。
 
@@ -34,7 +34,7 @@
 | POST `/wechat-binding/refresh` | `expected_version_no` | 安全绑定对象 |
 | POST `/wechat-binding/disconnect` | `expected_version_no,human_confirmed:true` | 安全绑定对象 |
 
-`binding_state` 为 `unbound / awaiting_message / ready / disconnected`；登录状态为 `wait / scaned / need_verifycode / verify_code_blocked / expired / awaiting_message / ready`。异常状态使用固定安全错误。已有 `/wechat-settings` 保留字段，追加 `transport` 和 `binding_state`；直连尚无扫码人上下文时 `configured=false`，不能生成可发送预览。
+`binding_state` 为 `unbound / awaiting_message / ready / disconnected`；登录状态为 `wait / scaned / need_verifycode / verify_code_blocked / expired / awaiting_message / ready`。异常状态使用固定安全错误。已有 `/wechat-settings` 保留字段，追加 `transport` 和 `binding_state`；有效扫码人和令牌引用对应的 `awaiting_message` 或 `ready` 绑定可为 `configured=true`。`context_ready` 仍如实表示是否已有本人上下文，不是首次发送前提。扫码完成后的 poll 只读绑定，只有显式 refresh 才拉取会话。
 
 ## 验收
 

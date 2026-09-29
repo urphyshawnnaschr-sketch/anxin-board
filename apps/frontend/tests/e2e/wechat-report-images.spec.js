@@ -19,7 +19,7 @@ async function mount(page, overrides = {}, initialSettings = settings) {
       return route.fulfill({ json: request.method() === 'POST' ? settings : initialSettings })
     }
     if (path.endsWith('/wechat-history')) return route.fulfill({ json: [] })
-    if (path.endsWith('/wechat-binding')) return route.fulfill({ json: { transport: 'openclaw', binding_state: 'unbound', version_no: initialSettings.version_no, account_id: '', target: '', recipient_label: '', context_ready: false } })
+    if (path.endsWith('/wechat-binding')) return route.fulfill({ json: initialSettings.transport === 'direct' ? initialSettings : { transport: 'openclaw', binding_state: 'unbound', version_no: initialSettings.version_no, account_id: '', target: '', recipient_label: '', context_ready: false } })
     if (path.endsWith('/wechat-preview')) {
       calls.push({ kind: 'preview', body: request.postDataJSON(), headers: request.headers() })
       return route.fulfill({ json: preview })
@@ -72,6 +72,46 @@ test('正式截图预览携带精确版本，图片受保护，确认后只发�
   await expect(page.getByRole('button', { name: '确认发送图片', exact: true })).toBeDisabled()
   expect(calls.filter(c => c.kind === 'send')).toHaveLength(1)
   expect(calls.find(c => c.kind === 'send').body).toEqual({ preview_id: 'preview-test', human_confirmed: true })
+})
+
+for (const bindingState of ['awaiting_message', 'ready']) {
+  test(`直连 ${bindingState} 无会话也可预览，二次确认后仅提交一次`, async ({ page }) => {
+    const calls = await mount(page, {}, { ...settings, transport: 'direct', binding_state: bindingState, context_ready: false, gateway_url: '', session_key: '' })
+    await expect(page.getByTestId('wechat-binding')).toContainText('微信已绑定，可直接生成图片预览并确认发送')
+    await expect(page.getByTestId('wechat-binding')).not.toContainText('给 ClawBot 发一句话')
+    await page.getByRole('button', { name: '生成图片预览', exact: true }).click()
+    await expect(page.getByTestId('wechat-preview').getByRole('img')).toHaveCount(2)
+    await expect(page.getByRole('button', { name: '确认发送图片', exact: true })).toBeEnabled()
+    expect(calls.filter(c => c.kind === 'send')).toHaveLength(0)
+    page.once('dialog', async dialog => {
+      expect(dialog.message()).toContain('接收人：验收客户')
+      expect(dialog.message()).toContain('共 2 张图片')
+      await dialog.dismiss()
+    })
+    await page.getByRole('button', { name: '确认发送图片', exact: true }).click()
+    expect(calls.filter(c => c.kind === 'send')).toHaveLength(0)
+    page.once('dialog', dialog => dialog.accept())
+    await page.getByRole('button', { name: '确认发送图片', exact: true }).click()
+    await expect(page.getByTestId('wechat-status')).toContainText('核对实际收件')
+    await expect(page.getByRole('button', { name: '确认发送图片', exact: true })).toBeDisabled()
+    expect(calls.filter(c => c.kind === 'send')).toHaveLength(1)
+  })
+}
+
+test('微信明确拒绝发送后才提供可选的会话刷新指引', async ({ page }) => {
+  await mount(page, {}, { ...settings, transport: 'direct', binding_state: 'awaiting_message', context_ready: false })
+  await expect(page.getByTestId('wechat-panel')).not.toContainText('给 ClawBot 发一句话')
+  let submissions = 0
+  await page.route('**/api/projects/1/wechat-send', route => {
+    submissions++
+    return route.fulfill({ json: { attempt_id: 'direct-rejected', state: 'failed', report_version_id: 7, recipient_label: '验收客户', pages: [{ index: 1, state: 'rejected', code: 'ILINK_REQUEST_REJECTED' }] } })
+  })
+  await page.getByRole('button', { name: '生成图片预览', exact: true }).click()
+  page.once('dialog', dialog => dialog.accept())
+  await page.getByRole('button', { name: '确认发送图片', exact: true }).click()
+  await expect(page.getByTestId('wechat-panel')).toContainText('可用绑定的微信给 ClawBot 发一句话，再点击“刷新会话（可选）”')
+  await expect(page.getByRole('button', { name: '确认发送图片', exact: true })).toBeDisabled()
+  expect(submissions).toBe(1)
 })
 
 test('尚无可见正式报告时不能预览或发送', async ({ page }) => {

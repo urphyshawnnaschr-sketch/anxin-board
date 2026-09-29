@@ -278,7 +278,8 @@ class IlinkClient:
 
     def send_image(self, config, token, png, *, context_token, filename, caption) -> GatewayResult:
         try:
-            if (not isinstance(config, dict) or not _opaque(token) or not _opaque(context_token)
+            if (not isinstance(config, dict) or not _opaque(token)
+                    or (context_token is not None and not _opaque(context_token))
                     or not isinstance(config.get('target'), str) or not _OWNER.fullmatch(config['target'])
                     or not isinstance(filename, str) or not _FILENAME.fullmatch(filename) or '..' in filename
                     or not _valid_png(png)):
@@ -326,13 +327,15 @@ class IlinkClient:
         client_id = 'anxin-' + secrets.token_hex(16)
         payload = {'msg': {
             'from_user_id': '', 'to_user_id': config['target'], 'client_id': client_id,
-            'message_type': 2, 'message_state': 2, 'context_token': context_token,
+            'message_type': 2, 'message_state': 2,
             'item_list': [{'type': 2, 'image_item': {
                 'media': {'encrypt_query_param': download,
                           'aes_key': base64.b64encode(key_hex.encode()).decode(), 'encrypt_type': 1},
                 'mid_size': len(ciphertext),
             }}],
         }, 'base_info': dict(_BASE_INFO)}
+        if context_token is not None:
+            payload['msg']['context_token'] = context_token
         try:
             body = self._api('sendmessage', base_url=base, token=token, payload=payload)
             # The official response can omit zero-valued ret. In that case only
@@ -344,7 +347,7 @@ class IlinkClient:
             if ('message_id' in body and (not isinstance(message_id, str)
                     or not re.fullmatch(r'[0-9]{1,20}', message_id) or not 0 < int(message_id) < 2**64)):
                 raise IlinkError('ILINK_RESPONSE_UNVERIFIED')
-            if token in message_id or context_token in message_id:
+            if token in message_id or (context_token is not None and context_token in message_id):
                 raise IlinkError('ILINK_RESPONSE_UNVERIFIED')
             return GatewayResult('accepted', 'ILINK_ACCEPTED', message_id)
         except IlinkError as error:

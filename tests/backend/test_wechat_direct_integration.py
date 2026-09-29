@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 import httpx
+import pytest
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
@@ -14,16 +15,19 @@ from test_wechat_delivery import delivery, metrics_state, state  # noqa: F401
 from test_wechat_delivery_api import wechat_client  # noqa: F401
 
 
-def test_qr_owner_context_and_real_formal_pngs_are_sent_once(binding, wechat_client, monkeypatch):
+@pytest.mark.parametrize('with_context',[False,True],ids=['first-send-without-context','with-owner-context'])
+def test_qr_owner_and_real_formal_pngs_are_sent_once(binding, wechat_client, monkeypatch,with_context):
     from app import report_screenshot, wechat_ilink
     d = binding
     c = wechat_client
     base = '/api/projects/1'
     uploaded, submitted, issued = [], [], []
     uploads = []
+    requested_paths = []
 
     def transport(request):
         path = request.url.path
+        requested_paths.append(path)
         body = json.loads(request.content) if request.headers.get('content-type','').startswith('application/json') else None
         if path == '/ilink/bot/get_bot_qrcode':
             issued.append('qr')
@@ -58,7 +62,10 @@ def test_qr_owner_context_and_real_formal_pngs_are_sent_once(binding, wechat_cli
         if path == '/ilink/bot/sendmessage':
             msg = body['msg']
             assert msg['to_user_id'] == 'owner@im.wechat'
-            assert msg['context_token'] == 'synthetic-direct-context'
+            if with_context:
+                assert msg['context_token'] == 'synthetic-direct-context'
+            else:
+                assert 'context_token' not in msg
             assert msg['message_type'] == 2 and msg['message_state'] == 2
             assert len(msg['item_list']) == 1 and msg['item_list'][0]['type'] == 2
             media = msg['item_list'][0]['image_item']['media']
@@ -80,11 +87,17 @@ def test_qr_owner_context_and_real_formal_pngs_are_sent_once(binding, wechat_cli
     first = c.post(base + '/wechat-login/poll', json={'flow_id':flow['flow_id']},
                    headers={'Local-Idempotency-Key':'direct-login'})
     assert first.status_code == 200 and first.json()['status'] == 'awaiting_message', first.text
-    second = c.post(base + '/wechat-login/poll', json={'flow_id':flow['flow_id']},
-                    headers={'Local-Idempotency-Key':'direct-context'})
-    assert second.status_code == 200 and second.json()['status'] == 'ready', second.text
+    assert first.json()['binding']['context_ready'] is False
+    configured = c.get(base + '/wechat-settings').json()
+    assert configured['configured'] is True and configured['binding_state'] == 'awaiting_message'
+    bound = first.json()['binding']
+    if with_context:
+        second = c.post(base + '/wechat-binding/refresh', json={'expected_version_no':bound['version_no']},
+                        headers={'Local-Idempotency-Key':'direct-context'})
+        assert second.status_code == 200 and second.json()['binding_state'] == 'ready', second.text
+        bound = second.json()
     assert submitted == [] and uploaded == []
-    config_version = second.json()['binding']['version_no']
+    config_version = bound['version_no']
     response = c.post(base + '/wechat-preview', json={**d['preview_payload'],
                       'expected_config_version_no':config_version})
     assert response.status_code == 200, response.text
@@ -102,22 +115,29 @@ def test_qr_owner_context_and_real_formal_pngs_are_sent_once(binding, wechat_cli
     assert result.status_code == 200, result.text
     assert result.json()['state'] == 'accepted', result.text
     assert uploaded == pngs and len(submitted) == len(pngs)
+    paths_after_send = list(requested_paths)
     duplicate = c.post(base + '/wechat-send', json=payload,
                        headers={'Local-Idempotency-Key':'direct-send'})
     assert duplicate.json() == result.json()
-    assert len(submitted) == len(pngs) and issued == ['qr']
+    assert requested_paths == paths_after_send
+    assert len(submitted) == len(pngs) and len(uploaded) == len(pngs) and issued == ['qr']
+    assert c.get(base + '/wechat-binding').json() == bound
+    if not with_context:
+        assert '/ilink/bot/getupdates' not in requested_paths
     assert c.get(base + '/wechat-history').json() == [result.json()]
-    public = json.dumps([flow,first.json(),second.json(),result.json()])
+    public = json.dumps([flow,first.json(),bound,result.json()])
     assert not any(secret in public for secret in ('synthetic-direct-token','synthetic-direct-context',
                                                    'synthetic-direct-cursor','synthetic-direct-nonce'))
     destination = os.environ.get('WECHAT_DIRECT_SYNTHETIC_EVIDENCE_DIR')
     if destination:
         root = Path(destination)
         root.mkdir(parents=True, exist_ok=True)
-        (root / 'result.json').write_text(json.dumps({
+        (root / ('with-context.json' if with_context else 'without-context.json')).write_text(json.dumps({
             'status':'PASS','scope':'synthetic QR/iLink HTTP; real renderer and guarded application API',
             'pages':len(pngs),'submitted_images':len(submitted),'duplicate_submissions':0,
             'owner_only':True,'encrypted_upload_matches_preview':True,
+            'context_present':with_context,'binding_state':bound['binding_state'],
+            'duplicate_http_requests':0,
             'real_wechat_login':False,'real_phone_receipt':False,
             'image_sha256':[hashlib.sha256(png).hexdigest() for png in pngs],
         },ensure_ascii=False,indent=2),encoding='utf-8')

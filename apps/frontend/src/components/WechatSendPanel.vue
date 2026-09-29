@@ -178,7 +178,7 @@ const failureReason = code => ({
   ILINK_AUTH_REJECTED: '微信未接受当前绑定凭据，请重新绑定微信。',
   ILINK_SESSION_EXPIRED: '微信会话已失效，请重新绑定微信。',
   ILINK_RATE_LIMITED: '微信暂时限制了发送频率，请稍后核对发送记录。',
-  ILINK_REQUEST_REJECTED: '微信拒绝了本页发送，请核对绑定和会话状态。',
+  ILINK_REQUEST_REJECTED: '微信拒绝了本页发送。可用绑定的微信给 ClawBot 发一句话，再点击“刷新会话（可选）”；本次不会自动重发。',
   ILINK_RESPONSE_UNVERIFIED: '微信响应无法确认投递结果，请先核对微信，系统不会自动重发。',
   ILINK_SEND_UNCERTAIN: '连接中断或等待超时，图片可能已提交，请先核对微信，系统不会自动重发。',
   GATEWAY_AUTH_REJECTED: '网关拒绝了访问令牌，请核对令牌。',

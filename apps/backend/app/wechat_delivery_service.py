@@ -66,7 +66,9 @@ def _public_config(config):
         from app.wechat_binding_store import get_binding
         binding=get_binding(config['project_id'],config['version_no'])
         state=binding['binding_state'] if binding else 'unbound'
-        configured=bool(configured and binding and state=='ready' and binding['context_ref'])
+        configured=bool(configured and binding and state in ('awaiting_message','ready')
+                        and type(config['target']) is str
+                        and re.fullmatch(r'[A-Za-z0-9_.-]{1,180}@im\.wechat',config['target']))
     return dict(configured=configured,version_no=config['version_no'],token_configured=bool(config['secret_ref']),
                 transport=mode,binding_state=state,
                 **{key:config[key] for key in _CONFIG_FIELDS})
@@ -143,7 +145,7 @@ def create_preview(project_id, payload):
     if config is None or config['version_no'] != config_version:
         raise DeliveryError('WECHAT_CONFIG_STALE')
     if not _public_config(config)['configured']:
-        raise DeliveryError('WECHAT_BINDING_CONTEXT_REQUIRED')
+        raise DeliveryError('WECHAT_BINDING_REQUIRED')
     document = load_approved_document(project_id, version, report_hash, module_hash)
     try:
         images = tuple(render_report_images(document.html))

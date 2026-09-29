@@ -48,17 +48,18 @@ def scan(d):
 
 def ready(d):
     f=scan(d)
-    result=d['binding'].poll_login(1,{'flow_id':f['flow_id']},'context-key')
-    assert result['status']=='ready'
-    return f,result['binding']
+    bound=d['binding'].refresh_binding(1,{'expected_version_no':d['binding'].get_binding(1)['version_no']})
+    assert bound['binding_state']=='ready'
+    return f,bound
 
 
 def test_qr_scan_then_owner_message_binds_without_exposing_private_material(binding):
     d=binding;flow=scan(d);s=d['binding']
     assert s.get_qr(1,flow['flow_id']).startswith(b'\x89PNG\r\n\x1a\n')
-    assert d['service'].get_settings(1)['configured'] is False
-    result=s.poll_login(1,{'flow_id':flow['flow_id']},'context-key')
-    assert result['status']=='ready' and result['binding']['context_ready']
+    assert d['service'].get_settings(1)['configured'] is True
+    assert s.get_binding(1)['context_ready'] is False
+    result=s.refresh_binding(1,{'expected_version_no':2})
+    assert result['binding_state']=='ready' and result['context_ready']
     settings=d['service'].get_settings(1)
     assert settings['configured'] and settings['transport']=='direct'
     assert settings['account_id']=='abcdef-im-bot' and settings['target']=='owner@im.wechat'
@@ -76,9 +77,10 @@ def test_qr_scan_then_owner_message_binds_without_exposing_private_material(bind
 ])
 def test_arbitrary_first_sender_group_or_bot_echo_cannot_bind_context(binding,message):
     d=binding;f=scan(d);d['ilink'].updates={'cursor':'cursor2','messages':[message]}
-    result=d['binding'].poll_login(1,{'flow_id':f['flow_id']},'unrelated-message')
-    assert result['status']=='awaiting_message' and not result['binding']['context_ready']
-    assert not d['service'].get_settings(1)['configured']
+    result=d['binding'].refresh_binding(1,{'expected_version_no':2})
+    assert result['binding_state']=='awaiting_message' and not result['context_ready']
+    assert d['service'].get_settings(1)['configured']
+    assert d['service'].get_settings(1)['target']=='owner@im.wechat'
 
 
 def test_bound_configuration_survives_ephemeral_reset_without_network(binding):
@@ -100,6 +102,21 @@ def test_start_replay_concurrent_tab_and_expiry_are_bounded(binding,monkeypatch)
     with pytest.raises(s.DeliveryError,match='WECHAT_LOGIN_EXPIRED'):
         s.poll_login(1,{'flow_id':f['flow_id']},'late-poll')
     assert d['ilink'].calls==['start']
+
+
+@pytest.mark.parametrize('with_context',[False,True])
+def test_completed_scan_can_start_rebinding_without_waiting_for_flow_expiry(binding,with_context):
+    d=binding;s=d['binding']
+    previous=ready(d)[0] if with_context else scan(d)
+    bound=s.get_binding(1);secrets=dict(d['secrets']._values);calls=list(d['ilink'].calls)
+    payload={'expected_version_no':bound['version_no']}
+    fresh=s.start_login(1,payload,'rebind-key')
+    assert fresh['status']=='wait' and fresh['flow_id']!=previous['flow_id']
+    assert s.start_login(1,payload,'rebind-key')==fresh
+    assert s.get_binding(1)==bound and d['secrets']._values==secrets
+    assert d['ilink'].calls==calls+['start']
+    with pytest.raises(s.DeliveryError,match='WECHAT_LOGIN_STALE'):
+        s.poll_login(1,{'flow_id':previous['flow_id']},'old-scan')
 
 
 def test_config_rotation_during_scan_rejects_late_result_without_persisting_bot_token(binding):
@@ -200,10 +217,10 @@ def test_concurrent_poll_and_external_config_change_never_commit_late_context(bi
         return d['ilink'].updates
     monkeypatch.setattr(d['ilink'],'get_updates',updates)
     with ThreadPoolExecutor(max_workers=1) as pool:
-        pending=pool.submit(d['binding'].poll_login,1,{'flow_id':f['flow_id']},'pending')
+        pending=pool.submit(d['binding'].refresh_binding,1,{'expected_version_no':2})
         assert entered.wait(10)
         with pytest.raises(d['binding'].DeliveryError,match='WECHAT_BINDING_BUSY'):
-            d['binding'].poll_login(1,{'flow_id':f['flow_id']},'concurrent')
+            d['binding'].refresh_binding(1,{'expected_version_no':2})
         d['service'].save_settings(1,{**d['config'],'expected_version_no':2,'token':'other-gateway'})
         release.set()
         with pytest.raises(d['binding'].DeliveryError,match='WECHAT_CONFIG_STALE'):pending.result(timeout=10)
@@ -211,20 +228,67 @@ def test_concurrent_poll_and_external_config_change_never_commit_late_context(bi
     assert 'synthetic-owner-context' not in d['secrets']._values.values()
 
 
-def test_nonowner_updates_cannot_make_unready_report_preview(binding):
-    d=binding;scan(d);d['preview_payload']['expected_config_version_no']=2
-    with pytest.raises(d['service'].DeliveryError,match='WECHAT_BINDING_CONTEXT_REQUIRED'):preview(d)
+@pytest.mark.parametrize('with_context',[False,True])
+def test_scanned_owner_can_preview_and_send_frozen_images_with_optional_context(binding,monkeypatch,with_context):
+    d=binding
+    if with_context:ready(d)
+    else:scan(d)
+    bound=d['binding'].get_binding(1)
+    d['preview_payload']['expected_config_version_no']=bound['version_no']
+    calls=[]
+    def direct(config,token,png,**kwargs):
+        calls.append((config,token,png,kwargs))
+        return SimpleNamespace(state='accepted',code='ILINK_ACCEPTED')
+    monkeypatch.setattr(d['binding'],'send_direct_image',direct)
+    p=preview(d);result=send(d,p)
+    assert result['state']=='accepted'
+    assert [call[2] for call in calls]==[image.png for image in d['images']]
+    for config,token,_,kwargs in calls:
+        assert config['target']=='owner@im.wechat' and token=='synthetic-bot-token'
+        assert kwargs['context_token']==('synthetic-owner-context' if with_context else None)
+    assert d['binding'].get_binding(1)==bound
+    assert bound['context_ready'] is with_context
+    assert bound['binding_state']==('ready' if with_context else 'awaiting_message')
+    assert send(d,p)==result and len(calls)==2
     assert not d['calls']
 
 
-@pytest.mark.parametrize('phase',['scan','context'])
-def test_cancel_during_network_poll_prevents_late_binding_or_context(binding,monkeypatch,phase):
-    d=binding;s=d['binding'];f=(scan(d) if phase=='context' else s.start_login(1,{'expected_version_no':1},'start-key'))
+@pytest.mark.parametrize('invalid',['unbound','disconnected','token_ref_missing','owner_missing','owner_invalid'])
+def test_incomplete_or_disconnected_direct_binding_cannot_preview_or_load_send_credentials(binding,invalid):
+    d=binding;scan(d)
+    config=d['store'].get_config(1)
+    fields={key:config[key] for key in ('gateway_url','account_id','target','recipient_label','session_key','secret_ref')}
+    if invalid=='token_ref_missing':fields['secret_ref']=''
+    if invalid=='owner_missing':fields['target']=''
+    if invalid=='owner_invalid':fields['target']='nickname'
+    if invalid=='unbound':
+        saved=d['store'].save_config(1,dict(fields,transport='direct'),2)
+    else:
+        saved=d['binding_store'].save_binding(1,fields,2,
+            state='disconnected' if invalid=='disconnected' else 'awaiting_message')
+    d['preview_payload']['expected_config_version_no']=saved['version_no']
+    assert d['service'].get_settings(1)['configured'] is False
+    with pytest.raises(d['service'].DeliveryError):preview(d)
+    with pytest.raises(d['service'].DeliveryError):d['binding'].direct_send_credentials(saved)
+    assert not d['service'].get_history(1) and not d['calls']
+
+
+def test_missing_bot_secret_blocks_no_context_send_before_attempt_is_claimed(binding):
+    from app.wechat_binding_secrets import delete_secret
+    d=binding;scan(d);d['preview_payload']['expected_config_version_no']=2
+    p=preview(d)
+    delete_secret(d['secrets'],d['store'].get_config(1)['secret_ref'])
+    with pytest.raises(d['service'].DeliveryError,match='WECHAT_CREDENTIAL_UNAVAILABLE'):send(d,p)
+    assert not d['service'].get_history(1) and not d['calls']
+
+
+def test_cancel_during_network_poll_prevents_late_binding(binding,monkeypatch):
+    d=binding;s=d['binding'];f=s.start_login(1,{'expected_version_no':1},'start-key')
     entered=threading.Event();release=threading.Event()
     def delayed(*args,**kwargs):
         entered.set();assert release.wait(10)
-        return d['ilink'].login if phase=='scan' else d['ilink'].updates
-    monkeypatch.setattr(d['ilink'],'poll_login' if phase=='scan' else 'get_updates',delayed)
+        return d['ilink'].login
+    monkeypatch.setattr(d['ilink'],'poll_login',delayed)
     with ThreadPoolExecutor(max_workers=1) as pool:
         pending=pool.submit(s.poll_login,1,{'flow_id':f['flow_id']},'delayed-poll')
         assert entered.wait(10)
@@ -233,9 +297,9 @@ def test_cancel_during_network_poll_prevents_late_binding_or_context(binding,mon
             assert result['cancelled']
         finally:release.set()
         with pytest.raises(s.DeliveryError,match='WECHAT_LOGIN_STALE'):pending.result(timeout=10)
-    assert s.get_binding(1)['version_no']==(2 if phase=='context' else 1)
+    assert s.get_binding(1)['version_no']==1
     assert 'synthetic-owner-context' not in d['secrets']._values.values()
-    if phase=='scan':assert 'synthetic-bot-token' not in d['secrets']._values.values()
+    assert 'synthetic-bot-token' not in d['secrets']._values.values()
 
 
 @pytest.mark.parametrize('terminal',['expired','verify_code_blocked'])
@@ -252,7 +316,7 @@ def test_empty_long_poll_preserves_configuration_and_credentials(binding):
     d['ilink'].updates={'cursor':'','messages':[]}
     with closing(d['connect']()) as conn:before='\n'.join(conn.iterdump())
     secrets=dict(d['secrets']._values)
-    assert s.poll_login(1,{'flow_id':f['flow_id']},'empty-poll')['status']=='awaiting_message'
+    assert s.refresh_binding(1,{'expected_version_no':2})['binding_state']=='awaiting_message'
     with closing(d['connect']()) as conn:assert '\n'.join(conn.iterdump())==before
     assert d['secrets']._values==secrets
 
@@ -281,17 +345,28 @@ def test_binding_context_write_failure_rolls_back_only_new_secrets(binding,monke
         original_put(ref,value)
     monkeypatch.setattr(d['secrets'],'put',fail_context)
     with pytest.raises(s.DeliveryError,match='WECHAT_CREDENTIAL_UNAVAILABLE'):
-        s.poll_login(1,{'flow_id':f['flow_id']},'failed-context')
+        s.refresh_binding(1,{'expected_version_no':2})
     assert d['secrets']._values==before and s.get_binding(1)['version_no']==2
 
 
-def test_context_poll_expiring_in_flight_cannot_commit(binding,monkeypatch):
-    d=binding;s=d['binding'];now=[100.0];monkeypatch.setattr(s,'_monotonic',lambda:now[0]);f=scan(d)
-    def expire(**kwargs):now[0]=401.0;return d['ilink'].updates
-    monkeypatch.setattr(d['ilink'],'get_updates',expire)
+def test_scan_poll_expiring_in_flight_cannot_commit(binding,monkeypatch):
+    d=binding;s=d['binding'];now=[100.0];monkeypatch.setattr(s,'_monotonic',lambda:now[0])
+    f=s.start_login(1,{'expected_version_no':1},'start-key')
+    def expire(*args,**kwargs):now[0]=401.0;return d['ilink'].login
+    monkeypatch.setattr(d['ilink'],'poll_login',expire)
     with pytest.raises(s.DeliveryError,match='WECHAT_LOGIN_EXPIRED'):
         s.poll_login(1,{'flow_id':f['flow_id']},'expired-context')
-    assert s.get_binding(1)['version_no']==2 and not s.get_binding(1)['context_ready']
+    assert s.get_binding(1)['version_no']==1 and not s.get_binding(1)['context_ready']
+    assert 'synthetic-bot-token' not in d['secrets']._values.values()
+
+
+def test_scanned_login_poll_returns_binding_without_reading_messages(binding):
+    d=binding;flow=scan(d);before=d['binding'].get_binding(1)
+    calls=list(d['ilink'].calls)
+    result=d['binding'].poll_login(1,{'flow_id':flow['flow_id']},'after-scan')
+    assert result['status']=='awaiting_message' and result['binding']==before
+    assert d['ilink'].calls==calls
+    assert not result['binding']['context_ready']
 
 
 @pytest.mark.parametrize('raw,canonical',[

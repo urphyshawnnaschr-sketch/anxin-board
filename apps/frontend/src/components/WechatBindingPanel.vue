@@ -18,8 +18,7 @@ let pollTimer = null
 let expiryTimer = null
 let controller = null
 const active = computed(() => !!busy.value || !!flow.value)
-const ready = computed(() => binding.value?.transport === 'direct' && binding.value?.binding_state === 'ready' && binding.value?.context_ready === true)
-const awaitingMessage = computed(() => status.value === 'awaiting_message' || binding.value?.transport === 'direct' && binding.value?.binding_state === 'awaiting_message')
+const ready = computed(() => binding.value?.transport === 'direct' && ['ready', 'awaiting_message'].includes(binding.value?.binding_state))
 const validFlow = value => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(value)
 
 function bindingError(response, fallback) {
@@ -31,7 +30,7 @@ function bindingError(response, fallback) {
     WECHAT_LOGIN_ALREADY_BOUND: '微信未提供新的绑定凭据，请重新扫码，或使用高级 OpenClaw 接入。',
     WECHAT_CONFIG_STALE: '微信配置已变化，请重新读取绑定状态。',
     WECHAT_BINDING_REQUIRED: '请先扫码绑定微信。',
-    WECHAT_BINDING_CONTEXT_REQUIRED: '请用刚扫码的微信给 ClawBot 发一句话，再检查绑定。',
+    WECHAT_BINDING_CONTEXT_REQUIRED: '当前绑定不可用于发送，请重新读取绑定状态。',
     WECHAT_CREDENTIAL_UNAVAILABLE: '本机微信凭据不可用，请重新绑定微信。',
     WECHAT_CREDENTIAL_REVOKE_FAILED: '本机旧绑定凭据未能完整清理，请重新读取状态后再操作。',
     ILINK_AUTH_REJECTED: '微信未接受当前绑定凭据，请重新绑定微信。',
@@ -164,16 +163,15 @@ async function poll(current, code = '') {
     if (value?.flow_id !== intended.id || !['wait', 'scaned', 'need_verifycode', 'verify_code_blocked', 'expired', 'awaiting_message', 'ready'].includes(value.status)) throw new Error('poll failed')
     if (value.binding) binding.value = safeBinding(value.binding)
     status.value = value.status
-    if (value.status === 'ready') {
-      if (!ready.value) throw new Error('unverified binding')
+    if (['ready', 'awaiting_message'].includes(value.status)) {
+      if (!value.binding || !ready.value) throw new Error('unverified binding')
       stopLocal()
       emit('changed')
       return
     }
     if (value.status === 'expired') { expire(current); return }
     if (!setExpiry(value.expires_at, current)) return
-    if (['scaned', 'need_verifycode', 'verify_code_blocked', 'awaiting_message'].includes(value.status)) clearQR()
-    if (value.status === 'awaiting_message') emit('changed')
+    if (['scaned', 'need_verifycode', 'verify_code_blocked'].includes(value.status)) clearQR()
     if (value.status === 'verify_code_blocked') {
       fail(current, '微信暂时不允许继续验证，请稍后重新绑定。')
       return
@@ -218,7 +216,7 @@ async function checkMessage() {
     if (!response.ok) { notice.value = bindingError(response, '暂时无法确认绑定状态，请稍后再检查。'); return }
     binding.value = safeBinding(response.body)
     status.value = 'idle'
-    if (!ready.value) notice.value = '还没有收到确认消息。请用刚扫码的微信给 ClawBot 发一句话，再检查绑定。'
+    if (ready.value && !binding.value.context_ready) notice.value = '尚未收到新的会话消息，仍可直接生成预览并确认发送。'
     emit('changed')
   } catch { if (live && current === generation) notice.value = '暂时无法确认绑定状态，请稍后再检查。' }
   finally { if (live && current === generation) busy.value = '' }
@@ -251,16 +249,15 @@ defineExpose({ reload })
 <template>
   <div class="wechat-binding" data-testid="wechat-binding">
     <div class="binding-title"><strong>微信收件</strong><button v-if="!flow && busy !== 'starting'" type="button" :disabled="disabled || active || !binding" @click="start">{{ ready ? '重新绑定微信' : '绑定微信' }}</button><button v-else type="button" @click="cancel">取消绑定</button></div>
-    <p v-if="ready && !flow && status !== 'starting'" class="binding-ready">微信已绑定，可以接收报告图片。</p>
+    <p v-if="ready && !flow && status !== 'starting'" class="binding-ready">微信已绑定，可直接生成图片预览并确认发送；提交后请核对实际收件。</p>
     <p v-else-if="binding?.transport === 'openclaw' && !flow" class="binding-guide">当前使用高级 OpenClaw 接入，也可以在这里扫码绑定微信。</p>
-    <p v-else-if="!flow && !awaitingMessage && !busy">用收件人的微信扫码，再给 ClawBot 发一句话，即可绑定。</p>
+    <p v-else-if="!flow && !busy">用收件人的微信扫码并确认，即可绑定。</p>
     <p v-if="!flow && status !== 'starting'" class="binding-note">若这个微信已在其他工具使用 ClawBot，重新绑定可能影响原连接；可改用高级接入。</p>
     <p v-if="busy === 'starting'">正在获取微信二维码…</p>
     <p v-if="busy === 'loading'">正在读取绑定状态…</p>
     <div v-if="qrSource" class="binding-qr"><img :src="qrSource" alt="微信绑定二维码"><p>请用收件人的微信扫一扫。</p></div>
     <p v-if="status === 'scaned'">已扫码，请在微信中确认。</p>
-    <p v-if="awaitingMessage">扫码已确认。请用刚扫码的微信给 ClawBot 发一句话，完成收件验证；这里不会自动回复消息。</p>
-    <button v-if="awaitingMessage && !flow" type="button" :disabled="disabled || active" @click="checkMessage">我已发送，检查绑定</button>
+    <button v-if="ready && !flow" type="button" :disabled="disabled || active" @click="checkMessage">刷新会话（可选）</button>
     <form v-if="status === 'need_verifycode'" class="binding-code" @submit.prevent="submitCode"><label>微信验证码<input v-model="verificationCode" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="one-time-code" :disabled="!!busy" required></label><button type="submit" :disabled="!!busy || !validVerificationCode">提交验证码</button><small>请填写微信要求的 4–12 位数字验证码，提交后会立即清空。</small></form>
     <p v-if="notice" role="status" class="binding-notice">{{ notice }}</p>
     <button v-if="!binding || status === 'error'" type="button" :disabled="active || disabled" @click="reload">重新读取绑定状态</button>

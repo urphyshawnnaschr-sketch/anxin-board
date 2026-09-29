@@ -46,7 +46,7 @@ class IlinkClient:
 Files: new `wechat_binding_store.py`, `wechat_binding_service.py`, `wechat_binding_api.py`; modify `wechat_delivery_store.py`, `wechat_delivery_service.py`, `main.py`, `product_restore_guard.py`; add binding/API tests and extend existing delivery/restore tests.
 
 - [ ] Test each spec endpoint with session denial, body limits, stale config, two concurrent login polls, canceled/expired flow, and scanner-only context selection.
-- [ ] Test that unrelated sender and group messages cannot enable delivery; bound secrets remain outside database/JSON/errors.
+- [ ] Test that unrelated sender and group messages cannot change the QR owner or its optional context; bound secrets remain outside database/JSON/errors.
 - [ ] Add backwards-compatible transport projection, credential rollback and local disconnect; recovery must retain immutable records.
 - [ ] Reuse `send_preview` for direct dispatch, including bound owner/context and canonical bot identity. Do not reset existing attempts.
 - [ ] Run binding, existing WeChat delivery/API and restore tests using isolated DB and in-memory secret store.
@@ -55,8 +55,9 @@ Behavioral contract example:
 
 ```python
 assert binding['binding_state'] == 'awaiting_message'
-assert settings['configured'] is False
-# A matching owner single-chat context is necessary before ready becomes true.
+assert settings['configured'] is True  # Valid QR owner and saved token; context is optional.
+assert binding['context_ready'] is False
+# If manually refreshed, only a matching owner single-chat context is stored.
 assert sender_id == confirmed_owner_id and message_type == 1 and not group_id
 assert history_before_disconnect == history_after_disconnect
 ```

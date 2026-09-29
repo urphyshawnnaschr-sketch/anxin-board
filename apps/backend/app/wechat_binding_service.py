@@ -126,7 +126,7 @@ def start_login(project_id,payload,key):
                 if (previous['start_key']==key and previous['start_expected']==expected
                         and not previous['cancelled'] and previous['status'] not in ('expired','verify_code_blocked')):
                     return dict(previous['start_response'])
-                if not previous['cancelled'] and previous['status'] not in ('ready','expired','verify_code_blocked'):raise DeliveryError('WECHAT_LOGIN_BUSY')
+                if not previous['cancelled'] and previous['status'] not in ('awaiting_message','ready','expired','verify_code_blocked'):raise DeliveryError('WECHAT_LOGIN_BUSY')
                 if previous['start_key']==key:raise DeliveryError('WECHAT_LOGIN_STALE')
             if len(_flows)>=32 and project_id not in _flows:raise DeliveryError('WECHAT_LOGIN_BUSY')
         value=_provider(_client_factory().start_login)
@@ -262,10 +262,7 @@ def poll_login(project_id,payload,key):
             return result
         if len(flow['replays'])>=256:raise DeliveryError('WECHAT_LOGIN_EXPIRED')
         store.assert_version(project_id,flow['expected_version'])
-        if flow['status']=='awaiting_message':
-            bound=_sync_context(project_id,flow['expected_version'],flow=flow)
-            flow['expected_version']=bound['version_no'];flow['status']=bound['binding_state']
-        elif flow['status'] not in ('ready','expired','verify_code_blocked'):
+        if flow['status'] not in ('awaiting_message','ready','expired','verify_code_blocked'):
             value=_provider(_client_factory().poll_login,flow['qrcode'],base_url=flow['base_url'],verification_code=code)
             _flow(project_id,flow['flow_id']);store.assert_version(project_id,flow['expected_version'])
             if type(value) is not dict:raise DeliveryError('WECHAT_BINDING_PROTOCOL_ERROR')
@@ -318,10 +315,13 @@ def disconnect(project_id,payload):
 
 def direct_send_credentials(config):
     bound=store.get_binding(config['project_id'],config['version_no'])
-    if not bound or bound['binding_state']!='ready' or not bound['context_ref']:
-        raise DeliveryError('WECHAT_BINDING_CONTEXT_REQUIRED')
+    if (config.get('transport')!='direct' or not bound
+            or bound['binding_state'] not in ('awaiting_message','ready') or not config['secret_ref']
+            or type(config['target']) is not str or not re.fullmatch(r'[A-Za-z0-9_.-]{1,180}@im\.wechat',config['target'])):
+        raise DeliveryError('WECHAT_BINDING_REQUIRED')
     secrets=_secrets()
-    return _secret(secrets,config['secret_ref']),_secret(secrets,bound['context_ref'])
+    return (_secret(secrets,config['secret_ref']),
+            _secret(secrets,bound['context_ref']) if bound['context_ref'] else None)
 
 
 def send_direct_image(config,token,png,*,context_token,filename,caption):

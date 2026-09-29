@@ -189,12 +189,13 @@ def test_untrusted_api_bases_are_rejected_before_request(url):
     assert not calls
 
 
-def send(client):
+def send(client, context_token=CONTEXT):
     return client.send_image({'base_url': BASE, 'target': OWNER}, TOKEN, PNG,
-                             context_token=CONTEXT, filename='report-01.png', caption='第 1 页')
+                             context_token=context_token, filename='report-01.png', caption='第 1 页')
 
 
-def test_image_is_aes_encrypted_and_sent_once_as_native_image(caplog):
+@pytest.mark.parametrize('context_token',[CONTEXT,None],ids=['with-context','without-context'])
+def test_image_is_aes_encrypted_and_sent_once_as_native_image(caplog,context_token):
     from cryptography.hazmat.primitives import padding
     from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
     requests = []
@@ -206,7 +207,7 @@ def test_image_is_aes_encrypted_and_sent_once_as_native_image(caplog):
             return httpx.Response(200, headers={'x-encrypted-param': 'synthetic-download-param'})
         return httpx.Response(200, json={'ret': 0, 'message_id': '18446744073709551614'})
     client = module().IlinkClient(transport=httpx.MockTransport(handle))
-    result = send(client)
+    result = send(client,context_token)
     assert (result.state, result.code, result.message_id) == ('accepted', 'ILINK_ACCEPTED', '18446744073709551614')
     assert len(requests) == 3
     prepare = json.loads(requests[0].content)
@@ -227,7 +228,11 @@ def test_image_is_aes_encrypted_and_sent_once_as_native_image(caplog):
     payload = json.loads(requests[2].content)
     msg = payload['msg']
     assert requests[2].url.path == '/ilink/bot/sendmessage'
-    assert (msg['to_user_id'], msg['message_type'], msg['message_state'], msg['context_token']) == (OWNER, 2, 2, CONTEXT)
+    assert (msg['to_user_id'], msg['message_type'], msg['message_state']) == (OWNER, 2, 2)
+    if context_token is None:
+        assert 'context_token' not in msg
+    else:
+        assert msg['context_token'] == CONTEXT
     assert msg['from_user_id'] == '' and msg['client_id']
     assert msg['item_list'] == [{'type': 2, 'image_item': {'media': {
         'encrypt_query_param': 'synthetic-download-param',
@@ -244,7 +249,8 @@ def test_malformed_or_unbounded_json_is_not_success(raw):
     assert caught.value.code == 'ILINK_RESPONSE_UNVERIFIED'
 
 
-def test_send_timeout_is_unknown_and_never_retried():
+@pytest.mark.parametrize('context_token',[CONTEXT,None],ids=['with-context','without-context'])
+def test_send_timeout_is_unknown_and_never_retried(context_token):
     requests = []
     def handle(request):
         requests.append(request)
@@ -253,7 +259,7 @@ def test_send_timeout_is_unknown_and_never_retried():
         if len(requests) == 2:
             return httpx.Response(200, headers={'x-encrypted-param': 'synthetic-download'})
         raise httpx.ReadTimeout(TOKEN + CONTEXT, request=request)
-    result = send(module().IlinkClient(transport=httpx.MockTransport(handle)))
+    result = send(module().IlinkClient(transport=httpx.MockTransport(handle)),context_token)
     assert (result.state, result.code) == ('unknown', 'ILINK_SEND_UNCERTAIN')
     assert len(requests) == 3 and TOKEN not in repr(result) and CONTEXT not in repr(result)
 
@@ -368,7 +374,8 @@ def test_each_stage_preserves_sending_certainty_without_retries(stage, status, s
     assert len(calls) == stage and TOKEN not in repr(result) and CONTEXT not in repr(result)
 
 
-def test_ret_zero_without_server_id_uses_safe_client_id_once():
+@pytest.mark.parametrize('context_token',[CONTEXT,None],ids=['with-context','without-context'])
+def test_ret_zero_without_server_id_uses_safe_client_id_once(context_token):
     count = 0
     def handle(_):
         nonlocal count
@@ -378,7 +385,7 @@ def test_ret_zero_without_server_id_uses_safe_client_id_once():
         if count == 2:
             return httpx.Response(200, headers={'x-encrypted-param': 'synthetic-download'})
         return httpx.Response(200, json={'ret': 0})
-    result = send(module().IlinkClient(transport=httpx.MockTransport(handle)))
+    result = send(module().IlinkClient(transport=httpx.MockTransport(handle)),context_token)
     assert result.state == 'accepted' and result.message_id.startswith('anxin-') and count == 3
 
 
@@ -401,7 +408,8 @@ def test_ret_zero_without_server_id_uses_safe_client_id_once():
     ({'message_id': '1', 'ret': -14}, 'rejected', 'ILINK_SESSION_EXPIRED'),
     ({'message_id': '1', 'errcode': -14}, 'rejected', 'ILINK_SESSION_EXPIRED'),
 ])
-def test_send_optional_ret_requires_explicit_valid_server_id_and_preserves_error_priority(body, state, code):
+@pytest.mark.parametrize('context_token',[CONTEXT,None],ids=['with-context','without-context'])
+def test_send_optional_ret_requires_explicit_valid_server_id_and_preserves_error_priority(body, state, code,context_token):
     calls = []
     def handle(request):
         calls.append(request)
@@ -410,7 +418,7 @@ def test_send_optional_ret_requires_explicit_valid_server_id_and_preserves_error
         if len(calls) == 2:
             return httpx.Response(200, headers={'x-encrypted-param': 'synthetic-download'})
         return httpx.Response(200, json=body)
-    result = send(module().IlinkClient(transport=httpx.MockTransport(handle)))
+    result = send(module().IlinkClient(transport=httpx.MockTransport(handle)),context_token)
     assert (result.state, result.code) == (state, code)
     if state == 'accepted':
         assert result.message_id == str(body['message_id'])
@@ -421,6 +429,13 @@ def test_input_rejection_occurs_before_upload():
     client, calls = client_for(httpx.Response(200, json={}))
     result = client.send_image({'base_url': BASE, 'target': 'nickname'}, TOKEN, PNG,
                               context_token=CONTEXT, filename='report.png', caption='')
+    assert result.code == 'ILINK_INPUT_INVALID' and not calls
+
+
+@pytest.mark.parametrize('context_token',['',False,[],{},'private\ncontext'])
+def test_invalid_present_context_is_rejected_before_upload(context_token):
+    client, calls = client_for(httpx.Response(200, json={}))
+    result = send(client,context_token)
     assert result.code == 'ILINK_INPUT_INVALID' and not calls
 
 

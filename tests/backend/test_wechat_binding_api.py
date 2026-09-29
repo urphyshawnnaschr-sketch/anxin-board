@@ -30,8 +30,8 @@ def test_guarded_qr_and_binding_http_flow(binding,wechat_client):
     scanned=c.post(url+'/wechat-login/poll',json={'flow_id':flow['flow_id']})
     assert scanned.status_code==200 and scanned.json()['status']=='awaiting_message'
     c.headers['Local-Idempotency-Key']='owner-message-key'
-    received=c.post(url+'/wechat-login/poll',json={'flow_id':flow['flow_id']})
-    assert received.status_code==200 and received.json()['status']=='ready'
+    received=c.post(url+'/wechat-binding/refresh',json={'expected_version_no':2})
+    assert received.status_code==200 and received.json()['binding_state']=='ready'
     assert c.get(url+'/wechat-settings').json()['configured']
     for secret in ('synthetic-bot-token','synthetic-owner-context','synthetic-cursor','synthetic-qr-nonce'):
         assert secret not in started.text+scanned.text+received.text
