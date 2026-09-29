@@ -17,13 +17,16 @@ _SCREENSHOT_CODES = {'REPORT_SCREENSHOT_' + code for code in (
     'RUNTIME_MISSING','RUNTIME_PATH_TOO_LONG','TIMEOUT','TOO_MANY_PAGES','UNSAFE_HTML',
     'ASSET_INVALID','UNSUPPORTED_LAYOUT','HORIZONTAL_OVERFLOW','LAYOUT_INVALID')}
 _GATEWAY_CODES = {
-    'accepted': {'GATEWAY_ACCEPTED', 'WECHAT_GATEWAY_ACCEPTED'},
+    'accepted': {'GATEWAY_ACCEPTED', 'WECHAT_GATEWAY_ACCEPTED','ILINK_ACCEPTED'},
     'rejected': {'GATEWAY_AUTH_REJECTED','GATEWAY_IMAGE_TOO_LARGE','GATEWAY_INPUT_INVALID',
                  'GATEWAY_POLICY_REJECTED','GATEWAY_RATE_LIMITED','GATEWAY_REDIRECT_REJECTED',
                  'GATEWAY_REQUEST_REJECTED','GATEWAY_TOOL_REJECTED','GATEWAY_TOOL_UNAVAILABLE',
-                 'GATEWAY_UPLOADS_DISABLED','WECHAT_GATEWAY_REJECTED'},
+                 'GATEWAY_UPLOADS_DISABLED','WECHAT_GATEWAY_REJECTED','ILINK_INPUT_INVALID',
+                 'ILINK_UPLOAD_FAILED','ILINK_AUTH_REJECTED','ILINK_SESSION_EXPIRED',
+                 'ILINK_RATE_LIMITED','ILINK_REQUEST_REJECTED'},
     'unknown': {'GATEWAY_DELIVERY_UNCERTAIN','GATEWAY_RESPONSE_UNVERIFIED','GATEWAY_SERVER_UNCERTAIN',
-                'GATEWAY_TIMEOUT','GATEWAY_TRANSPORT_UNCERTAIN','WECHAT_GATEWAY_UNKNOWN'},
+                'GATEWAY_TIMEOUT','GATEWAY_TRANSPORT_UNCERTAIN','WECHAT_GATEWAY_UNKNOWN',
+                'ILINK_RESPONSE_UNVERIFIED','ILINK_SEND_UNCERTAIN'},
 }
 
 
@@ -54,8 +57,18 @@ def _payload(value, required, optional=()):
 
 def _public_config(config):
     if config is None:
-        return dict(configured=False,version_no=0,token_configured=False,**dict.fromkeys(_CONFIG_FIELDS,''))
-    return dict(configured=True,version_no=config['version_no'],token_configured=bool(config['secret_ref']),
+        return dict(configured=False,version_no=0,token_configured=False,transport='direct',binding_state='unbound',
+                    **dict.fromkeys(_CONFIG_FIELDS,''))
+    mode=config.get('transport','openclaw')
+    state='ready'
+    configured=bool(config['secret_ref'])
+    if mode=='direct':
+        from app.wechat_binding_store import get_binding
+        binding=get_binding(config['project_id'],config['version_no'])
+        state=binding['binding_state'] if binding else 'unbound'
+        configured=bool(configured and binding and state=='ready' and binding['context_ref'])
+    return dict(configured=configured,version_no=config['version_no'],token_configured=bool(config['secret_ref']),
+                transport=mode,binding_state=state,
                 **{key:config[key] for key in _CONFIG_FIELDS})
 
 
@@ -65,7 +78,8 @@ def get_settings(project_id):
 
 def save_settings(project_id, payload):
     _positive(project_id)
-    _payload(payload, ('expected_version_no', *_CONFIG_FIELDS), ('token',))
+    _payload(payload, ('expected_version_no', *_CONFIG_FIELDS), ('token','transport'))
+    if payload.get('transport','openclaw')!='openclaw':raise DeliveryError('WECHAT_INPUT_INVALID')
     expected = _positive(payload['expected_version_no'], zero=True)
     fields = {key:_text(payload[key],2048 if key=='gateway_url' else 200) for key in _CONFIG_FIELDS}
     try:
@@ -75,6 +89,8 @@ def save_settings(project_id, payload):
     for key in ('account_id', 'session_key'):
         if re.fullmatch(r'[A-Za-z0-9_:@.-]{1,200}',fields[key]) is None:
             raise DeliveryError('WECHAT_INPUT_INVALID')
+    if store.canonical_account(fields['account_id']) in ('','__proto__','prototype','constructor'):
+        raise DeliveryError('WECHAT_INPUT_INVALID')
     if re.fullmatch(r'[A-Za-z0-9_.-]{1,180}@im\.wechat',fields['target']) is None:
         raise DeliveryError('WECHAT_INPUT_INVALID')
     current = store.get_config(project_id)
@@ -82,7 +98,7 @@ def save_settings(project_id, payload):
         raise DeliveryError('WECHAT_CONFIG_STALE')
     token = payload.get('token')
     if token is None:
-        if current is None or current['gateway_url'] != fields['gateway_url']:
+        if current is None or current.get('transport','openclaw')!='openclaw' or current['gateway_url'] != fields['gateway_url']:
             raise DeliveryError('WECHAT_TOKEN_REQUIRED')
         fields['secret_ref'] = current['secret_ref']
         return _public_config(store.save_config(project_id, fields, expected))
@@ -96,13 +112,17 @@ def save_settings(project_id, payload):
     except SecretStoreError:
         raise DeliveryError('WECHAT_CREDENTIAL_UNAVAILABLE') from None
     try:
-        return _public_config(store.save_config(project_id, dict(fields, secret_ref=secret_ref), expected))
+        saved=store.save_config(project_id, dict(fields, secret_ref=secret_ref), expected)
     except Exception:
         try:
             secrets.delete(secret_ref)
         except SecretStoreError:
             raise DeliveryError('WECHAT_CREDENTIAL_ROLLBACK_FAILED') from None
         raise
+    if current and current.get('transport')=='direct':
+        from app.wechat_binding_service import retire_direct_credentials
+        retire_direct_credentials(project_id)
+    return _public_config(saved)
 
 
 def _preview_response(preview, images):
@@ -122,6 +142,8 @@ def create_preview(project_id, payload):
     config = store.get_config(project_id)
     if config is None or config['version_no'] != config_version:
         raise DeliveryError('WECHAT_CONFIG_STALE')
+    if not _public_config(config)['configured']:
+        raise DeliveryError('WECHAT_BINDING_CONTEXT_REQUIRED')
     document = load_approved_document(project_id, version, report_hash, module_hash)
     try:
         images = tuple(render_report_images(document.html))
@@ -145,7 +167,7 @@ def create_preview(project_id, payload):
     value = dict(preview_id=preview_id,project_id=project_id,report_version_id=version,
                  report_hash=report_hash,module_narrative_hash=module_hash,report_label=document.report_label,
                  document_hash=document.document_hash,authority_hash=document.authority_hash,
-                 document_target_hash=digest([project_id,document.document_hash,config['account_id'],config['target']]),
+                 document_target_hash=digest([project_id,document.document_hash,store.canonical_account(config['account_id']),config['target']]),
                  config_version_no=config_version,recipient_label=config['recipient_label'],created_at=store.now())
     store.insert_preview(value,frozen)
     return _preview_response(*store.get_preview(project_id,preview_id))
@@ -180,10 +202,16 @@ def send_preview(project_id, preview_id, idempotency_key, *, human_confirmed):
     if config is None or config['version_no'] != preview['config_version_no']:
         raise DeliveryError('WECHAT_CONFIG_STALE')
     # Secret access happens only on the explicit send boundary, before claiming.
-    try:
-        token = _secret_store_factory().get(config['secret_ref'])
-    except SecretStoreError:
-        raise DeliveryError('WECHAT_CREDENTIAL_UNAVAILABLE') from None
+    context_token=None
+    direct=config.get('transport','openclaw')=='direct'
+    if direct:
+        from app.wechat_binding_service import direct_send_credentials
+        token,context_token=direct_send_credentials(config)
+    else:
+        try:
+            token = _secret_store_factory().get(config['secret_ref'])
+        except SecretStoreError:
+            raise DeliveryError('WECHAT_CREDENTIAL_UNAVAILABLE') from None
     for image in images:
         if hashlib.sha256(image['png']).hexdigest() != image['sha256']:
             raise DeliveryError('WECHAT_IMAGE_INVALID')
@@ -199,8 +227,13 @@ def send_preview(project_id, preview_id, idempotency_key, *, human_confirmed):
         except DeliveryError:
             break
         try:
-            outcome = send_image(safe_config,token,image['png'],filename=f'report-{index}.png',
-                                 caption=f"{preview['report_label']}（{index}/{len(images)}）")
+            kwargs=dict(filename=f'report-{index}.png',caption=f"{preview['report_label']}（{index}/{len(images)}）")
+            if direct:
+                from app.wechat_binding_service import send_direct_image
+                outcome=send_direct_image(dict(safe_config,base_url=config['gateway_url']),token,image['png'],
+                                          context_token=context_token,**kwargs)
+            else:
+                outcome = send_image(safe_config,token,image['png'],**kwargs)
             state = outcome.state if outcome.state in ('accepted','rejected','unknown') else 'unknown'
             # Preserve useful fixed reasons, never arbitrary provider response text.
             code = getattr(outcome,'code',None)

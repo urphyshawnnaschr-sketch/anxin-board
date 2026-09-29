@@ -55,6 +55,7 @@ _EXTERNAL_EFFECT_TABLES: Final[tuple[str, ...]] = (
     "wechat_attempt_pages",
     "wechat_request_keys",
     "wechat_preview_attempt_bindings",
+    "wechat_bindings",
 )
 _SQLITE_SIDECARS: Final[tuple[str, ...]] = (
     "anxinboard.db-wal",

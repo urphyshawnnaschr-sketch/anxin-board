@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { createWechatPreview, getWechatHistory, getWechatImage, getWechatSettings, saveWechatSettings, sendWechatPreview } from '../api/wechatDelivery.js'
+import WechatBindingPanel from './WechatBindingPanel.vue'
 
 const props = defineProps({
   projectId: { type: [Number, String], required: true },
@@ -17,6 +18,8 @@ const settings = ref(null)
 const loading = ref(true)
 const busy = ref('')
 const configOpen = ref(false)
+const bindingPanel = ref(null)
+const bindingBusy = ref(false)
 const message = ref('')
 const history = ref([])
 const preview = ref(null)
@@ -25,6 +28,7 @@ const submitted = ref(false)
 let generation = 0
 let reportGeneration = 0
 let historyGeneration = 0
+let settingsGeneration = 0
 let live = true
 
 const isHash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)
@@ -34,7 +38,7 @@ const reportReady = computed(() => Number.isInteger(props.displayedReportVersion
    (props.moduleNarrativeState === 'absent' && props.displayedModuleNarrativeHash === null)))
 const dirty = computed(() => !!form.token || fields.some(key => form[key].trim() !== (settings.value?.[key] ?? (key === 'session_key' ? 'main' : ''))))
 const configured = computed(() => settings.value?.configured === true && settings.value?.token_configured === true)
-const canPreview = computed(() => !loading.value && !busy.value && reportReady.value && configured.value && !dirty.value)
+const canPreview = computed(() => !loading.value && !busy.value && !bindingBusy.value && reportReady.value && configured.value && !dirty.value)
 const canSend = computed(() => canPreview.value && !!preview.value && !submitted.value && pictures.value.length === preview.value.pages.length)
 
 function clearPreview() {
@@ -61,6 +65,7 @@ function applySettings(value) {
 
 async function load() {
   const current = ++generation
+  settingsGeneration++
   historyGeneration++
   clearPreview()
   loading.value = true
@@ -75,7 +80,7 @@ async function load() {
     if (!config.ok || !records.ok || !Array.isArray(records.body)) throw new Error('load failed')
     applySettings(config.body)
     history.value = records.body
-    configOpen.value = !config.body.configured
+    configOpen.value = false
   } catch {
     if (live && current === generation) message.value = '微信配置读取失败，请刷新状态。'
   } finally {
@@ -83,8 +88,25 @@ async function load() {
   }
 }
 
+async function refreshSettings() {
+  const current = generation
+  const settingsCurrent = ++settingsGeneration
+  clearPreview()
+  try {
+    const response = await getWechatSettings(props.projectId)
+    if (!live || current !== generation || settingsCurrent !== settingsGeneration) return
+    if (!response.ok) throw new Error('settings read failed')
+    applySettings(response.body)
+  } catch {
+    if (live && current === generation && settingsCurrent === settingsGeneration) {
+      settings.value = null
+      message.value = '微信状态读取失败，请刷新后再生成预览。'
+    }
+  }
+}
+
 async function save() {
-  if (busy.value || loading.value) return
+  if (busy.value || bindingBusy.value || loading.value) return
   const current = generation
   const projectId = props.projectId
   const payload = Object.fromEntries(fields.map(key => [key, form[key].trim()]))
@@ -98,6 +120,7 @@ async function save() {
     if (!live || current !== generation) return
     if (!response.ok) { message.value = safeError(response, '配置未保存，请检查网关地址、绑定账号、接收标识和令牌。'); return }
     applySettings(response.body)
+    void bindingPanel.value?.reload()
     message.value = '配置已保存；微信实际收件尚需通过发送验收。'
   } catch {
     if (live && current === generation) message.value = '配置保存结果无法确认，请刷新状态后核对。'
@@ -150,6 +173,14 @@ async function makePreview() {
 
 const stateLabel = state => ({ sending: '正在提交', accepted: '已提交微信，待核对收件', partial: '部分图片已提交', failed: '发送失败', unknown: '发送结果无法确认' }[state] || '状态待核对')
 const failureReason = code => ({
+  ILINK_INPUT_INVALID: '图片或微信绑定信息未通过检查，请重新读取绑定状态。',
+  ILINK_UPLOAD_FAILED: '图片上传未完成，本页尚未提交微信。请核对网络与发送记录。',
+  ILINK_AUTH_REJECTED: '微信未接受当前绑定凭据，请重新绑定微信。',
+  ILINK_SESSION_EXPIRED: '微信会话已失效，请重新绑定微信。',
+  ILINK_RATE_LIMITED: '微信暂时限制了发送频率，请稍后核对发送记录。',
+  ILINK_REQUEST_REJECTED: '微信拒绝了本页发送，请核对绑定和会话状态。',
+  ILINK_RESPONSE_UNVERIFIED: '微信响应无法确认投递结果，请先核对微信，系统不会自动重发。',
+  ILINK_SEND_UNCERTAIN: '连接中断或等待超时，图片可能已提交，请先核对微信，系统不会自动重发。',
   GATEWAY_AUTH_REJECTED: '网关拒绝了访问令牌，请核对令牌。',
   GATEWAY_POLICY_REJECTED: '网关未授权发送消息，请检查消息工具权限。',
   GATEWAY_UPLOADS_DISABLED: '网关尚未开启图片上传，请开启后更新配置。',
@@ -228,18 +259,19 @@ onUnmounted(() => { live = false; generation++; clearPreview(); form.token = '' 
     </div>
     <p v-if="loading">正在读取微信配置…</p>
     <template v-else>
-      <div v-if="configured" class="wechat-recipient"><b>接收人：{{ settings.recipient_label }}</b><span>微信接收标识：{{ settings.target }}</span></div>
+      <WechatBindingPanel ref="bindingPanel" :project-id="projectId" :disabled="!!busy || loading" @active-change="bindingBusy = $event" @starting="clearPreview" @changed="refreshSettings" />
+      <div v-if="configured" class="wechat-recipient"><b>接收人：{{ settings.recipient_label }}</b><span v-if="settings.transport !== 'direct'">微信接收标识：{{ settings.target }}</span></div>
       <details :open="configOpen" @toggle="configOpen = $event.target.open">
-        <summary>{{ configured ? '修改微信配置' : '配置已有的 OpenClaw 微信连接' }}</summary>
+        <summary>高级接入：使用已有 OpenClaw</summary>
         <form class="wechat-config" @submit.prevent="save">
-          <label>OpenClaw 网关地址<input v-model="form.gateway_url" type="url" placeholder="https://your-gateway.example" required :disabled="!!busy" autocomplete="off"></label>
-          <label>接收人名称<input v-model="form.recipient_label" required maxlength="128" :disabled="!!busy" placeholder="客户或项目负责人"></label>
-          <label>绑定账号标识<input v-model="form.account_id" required maxlength="200" :disabled="!!busy" autocomplete="off"></label>
-          <label>微信接收标识<input v-model="form.target" required maxlength="190" :disabled="!!busy" placeholder="由已有 OpenClaw 微信会话提供" autocomplete="off"></label>
-          <label>OpenClaw 会话<input v-model="form.session_key" required maxlength="200" :disabled="!!busy" autocomplete="off"></label>
-          <label>访问令牌<input v-model="form.token" type="password" :required="!configured" :disabled="!!busy" autocomplete="new-password" :placeholder="configured ? '已保存；留空保持原令牌' : '保存到本机凭据管理器'"></label>
+          <label>OpenClaw 网关地址<input v-model="form.gateway_url" type="url" placeholder="https://your-gateway.example" required :disabled="!!busy || bindingBusy" autocomplete="off"></label>
+          <label>接收人名称<input v-model="form.recipient_label" required maxlength="128" :disabled="!!busy || bindingBusy" placeholder="客户或项目负责人"></label>
+          <label>绑定账号标识<input v-model="form.account_id" required maxlength="200" :disabled="!!busy || bindingBusy" autocomplete="off"></label>
+          <label>微信接收标识<input v-model="form.target" required maxlength="190" :disabled="!!busy || bindingBusy" placeholder="由已有 OpenClaw 微信会话提供" autocomplete="off"></label>
+          <label>OpenClaw 会话<input v-model="form.session_key" required maxlength="200" :disabled="!!busy || bindingBusy" autocomplete="off"></label>
+          <label>访问令牌<input v-model="form.token" type="password" :required="!configured || settings?.transport === 'direct'" :disabled="!!busy || bindingBusy" autocomplete="new-password" :placeholder="configured && settings?.transport !== 'direct' ? '已保存；留空保持原令牌' : '填写 OpenClaw 网关访问令牌'"></label>
           <p class="wechat-help">使用客户已绑定微信的 OpenClaw。远程地址需要 HTTPS；网关须允许消息工具和图片上传。修改网关地址时请重新填写令牌。</p>
-          <button type="submit" :disabled="!!busy || (!dirty && configured)">{{ busy === 'saving' ? '正在保存…' : '保存微信配置' }}</button>
+          <button type="submit" :disabled="!!busy || bindingBusy || (!dirty && configured)">{{ busy === 'saving' ? '正在保存…' : '保存微信配置' }}</button>
         </form>
       </details>
       <p v-if="!reportReady" class="wechat-help">请先打开当前正式确认版报告，待模块说明与代码统计加载完成后生成图片。</p>

@@ -19,6 +19,7 @@ async function mount(page, overrides = {}, initialSettings = settings) {
       return route.fulfill({ json: request.method() === 'POST' ? settings : initialSettings })
     }
     if (path.endsWith('/wechat-history')) return route.fulfill({ json: [] })
+    if (path.endsWith('/wechat-binding')) return route.fulfill({ json: { transport: 'openclaw', binding_state: 'unbound', version_no: initialSettings.version_no, account_id: '', target: '', recipient_label: '', context_ready: false } })
     if (path.endsWith('/wechat-preview')) {
       calls.push({ kind: 'preview', body: request.postDataJSON(), headers: request.headers() })
       return route.fulfill({ json: preview })
@@ -41,6 +42,7 @@ async function mount(page, overrides = {}, initialSettings = settings) {
 
 test('配置保存清空令牌并且不触发发送', async ({ page }) => {
   const calls = await mount(page, {}, { configured: false, version_no: 0, session_key: '' })
+  await page.getByText('高级接入：使用已有 OpenClaw', { exact: true }).click()
   await expect(page.getByLabel('OpenClaw 会话')).toHaveValue('main')
   await page.getByLabel('OpenClaw 网关地址').fill(settings.gateway_url)
   await page.getByLabel('绑定账号标识').fill(settings.account_id)
@@ -118,11 +120,32 @@ test('明确的配置拒绝展示可操作原因，未知网关文字不回显',
   await expect(page.getByRole('button', { name: '确认发送图片', exact: true })).toBeDisabled()
 })
 
+test('直连失败提示区分重新绑定和未知投递，并保留旧网关历史', async ({ page }) => {
+  const calls = await mount(page)
+  await page.route('**/api/projects/1/wechat-history', route => route.fulfill({ json: [{
+    attempt_id: 'synthetic-history', report_version_id: 7, recipient_label: '验收客户', state: 'unknown',
+    pages: [
+      { index: 1, state: 'rejected', code: 'ILINK_SESSION_EXPIRED' },
+      { index: 2, state: 'unknown', code: 'ILINK_RESPONSE_UNVERIFIED' },
+      { index: 3, state: 'unknown', code: 'ILINK_SEND_UNCERTAIN' },
+      { index: 4, state: 'rejected', code: 'GATEWAY_UPLOADS_DISABLED' },
+      { index: 5, state: 'unknown', code: 'private-provider-text-must-not-render' }
+    ]
+  }] }))
+  await page.getByRole('button', { name: '刷新发送记录', exact: true }).click()
+  await expect(page.getByText('第 1 页：微信会话已失效，请重新绑定微信。')).toBeVisible()
+  await expect(page.getByText('第 2 页：微信响应无法确认投递结果，请先核对微信，系统不会自动重发。')).toBeVisible()
+  await expect(page.getByText('第 3 页：连接中断或等待超时，图片可能已提交，请先核对微信，系统不会自动重发。')).toBeVisible()
+  await expect(page.getByText('第 4 页：网关尚未开启图片上传，请开启后更新配置。')).toBeVisible()
+  await expect(page.getByTestId('wechat-panel')).not.toContainText('private-provider-text')
+  expect(calls.filter(c => c.kind === 'send')).toHaveLength(0)
+})
+
 test('发送预览前配置有未保存修改时禁止外发', async ({ page }) => {
   const calls = await mount(page)
   await page.getByRole('button', { name: '生成图片预览', exact: true }).click()
   await expect(page.getByRole('button', { name: '确认发送图片', exact: true })).toBeEnabled()
-  await page.getByText('修改微信配置', { exact: true }).click()
+  await page.getByText('高级接入：使用已有 OpenClaw', { exact: true }).click()
   await page.getByLabel('微信接收标识').fill('another@im.wechat')
   await expect(page.getByRole('button', { name: '确认发送图片', exact: true })).toBeDisabled()
   expect(calls.filter(c => c.kind === 'send')).toHaveLength(0)

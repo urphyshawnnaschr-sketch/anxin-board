@@ -53,6 +53,9 @@ from app.report_validation_runtime import create_validation_result as create_val
 from app.report_send_authorization_api import router as report_send_authorization_router
 from app.wechat_delivery_api import router as wechat_delivery_router
 from app.wechat_delivery_store import ensure_wechat_delivery_schema, recover_interrupted_sends
+from app.wechat_binding_api import router as wechat_binding_router
+from app.wechat_binding_store import ensure_wechat_binding_schema
+from app.wechat_binding_service import clear_ephemeral_flows
 
 
 # Product default: the explicit project Git connection-check action may show the trusted
@@ -126,11 +129,14 @@ async def lifespan(_: FastAPI):
     ensure_project_state_baseline_schema()
     ensure_brownfield_baseline_schema()
     ensure_wechat_delivery_schema()
+    ensure_wechat_binding_schema()
+    clear_ephemeral_flows()
     recover_interrupted_sends()
     configure_local_session_guard(enable_handoff=True)
     try:
         yield
     finally:
+        clear_ephemeral_flows()
         invalidate_local_session_guard()
 
 
@@ -171,3 +177,4 @@ app.include_router(project_state_baseline_router)
 app.include_router(brownfield_baseline_router)
 app.include_router(brownfield_baseline_report_router)
 app.include_router(wechat_delivery_router)
+app.include_router(wechat_binding_router)

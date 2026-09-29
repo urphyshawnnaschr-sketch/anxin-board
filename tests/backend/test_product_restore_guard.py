@@ -18,6 +18,7 @@ from app.product_restore_guard import (
 )
 from app.storage import Storage
 from test_wechat_delivery import state, metrics_state, delivery, preview, send  # noqa: F401
+from test_wechat_binding import binding, ready  # noqa: F401
 from types import SimpleNamespace
 
 
@@ -236,6 +237,23 @@ def test_restore_rejects_changed_frozen_wechat_png_with_same_attempts(delivery,t
         conn.execute('DROP TRIGGER wechat_preview_images_no_update')
         conn.execute("UPDATE wechat_preview_images SET png=X'01'")
     package=tmp_path/'changed-image.zip'
+    create_product_backup(package,data_root=source)
+    before=(target/'anxinboard.db').read_bytes()
+    _authorize(monkeypatch)
+    with pytest.raises(ProductRestoreExternalAuthorityRollbackError):
+        restore_product_backup_user_safe(package,data_root=target)
+    assert (target/'anxinboard.db').read_bytes()==before
+
+
+def test_restore_rejects_changed_direct_binding_with_unchanged_config(binding,tmp_path,monkeypatch):
+    d=binding;ready(d)
+    source=tmp_path/'changed-binding';target=tmp_path/'current-binding'
+    _copy_synthetic_delivery_database(d['path'],source/'anxinboard.db')
+    _copy_synthetic_delivery_database(d['path'],target/'anxinboard.db')
+    with sqlite3.connect(source/'anxinboard.db') as conn:
+        conn.execute('DROP TRIGGER wechat_bindings_no_update')
+        conn.execute("UPDATE wechat_bindings SET context_ref='other-opaque-context' WHERE binding_state='ready'")
+    package=tmp_path/'changed-binding.zip'
     create_product_backup(package,data_root=source)
     before=(target/'anxinboard.db').read_bytes()
     _authorize(monkeypatch)

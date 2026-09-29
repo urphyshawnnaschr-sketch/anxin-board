@@ -2,6 +2,7 @@
 from contextlib import closing, contextmanager
 from datetime import datetime, timezone
 from uuid import uuid4
+import re
 
 from app.db import get_connection
 from app.approved_report_delivery import DeliveryError, authority_stamp
@@ -14,6 +15,18 @@ _SAFE_CONFIG_REJECTIONS = frozenset({
 
 def now():
     return datetime.now(timezone.utc).isoformat()
+
+
+def canonical_account(value):
+    """Match OpenClaw 4735f663 normalization-core for explicit account IDs.
+
+    Empty values stay empty for the local disconnected sentinel; callers never
+    fall back to an implicit default account when accepting configuration.
+    """
+    if type(value) is not str:return value
+    lowered=value.strip().lower()
+    if re.fullmatch(r'[a-z0-9][a-z0-9_-]{0,63}',lowered):return lowered
+    return re.sub(r'[^a-z0-9_-]+','-',lowered).strip('-')[:64]
 
 
 @contextmanager
@@ -58,6 +71,8 @@ def ensure_wechat_delivery_schema():
           code TEXT NOT NULL, PRIMARY KEY(attempt_id,page_index));
         CREATE INDEX IF NOT EXISTS idx_wechat_history ON wechat_attempts(project_id,created_at DESC);
         ''')
+        if 'transport' not in {r[1] for r in conn.execute('PRAGMA table_info(wechat_configs)')}:
+            conn.execute("ALTER TABLE wechat_configs ADD COLUMN transport TEXT NOT NULL DEFAULT 'openclaw'")
         for table in ('wechat_configs', 'wechat_previews', 'wechat_preview_images', 'wechat_request_keys',
                       'wechat_preview_attempt_bindings'):
             for action in ('UPDATE', 'DELETE'):
@@ -102,13 +117,19 @@ def get_config(project_id):
 
 def save_config(project_id, value, expected_version):
     with transaction() as conn:
-        current = current_config(conn, project_id)
-        if (current['version_no'] if current else 0) != expected_version:
-            raise DeliveryError('WECHAT_CONFIG_STALE')
-        result = dict(value, project_id=project_id, version_no=expected_version+1, created_at=now())
-        columns = ','.join(result)
-        conn.execute(f'INSERT INTO wechat_configs ({columns}) VALUES ({",".join("?" for _ in result)})', tuple(result.values()))
-        return result
+        return insert_config(conn,project_id,value,expected_version)
+
+
+def insert_config(conn, project_id, value, expected_version):
+    current = current_config(conn, project_id)
+    if (current['version_no'] if current else 0) != expected_version:
+        raise DeliveryError('WECHAT_CONFIG_STALE')
+    result = dict(value, project_id=project_id, version_no=expected_version+1, created_at=now())
+    result.setdefault('transport','openclaw')
+    result['account_id']=canonical_account(result['account_id'])
+    columns = ','.join(result)
+    conn.execute(f'INSERT INTO wechat_configs ({columns}) VALUES ({",".join("?" for _ in result)})', tuple(result.values()))
+    return result
 
 
 def assert_current(conn, preview):
@@ -156,6 +177,24 @@ def _safe_unsent_failure(conn, attempt):
                               for page in pages)
 
 
+def _equivalent_attempts(conn,preview):
+    """Include shipped gateway records that used the bot's raw @im.bot spelling.
+
+    Historical hashes and keys remain immutable. Canonical routing equivalence is
+    checked from their frozen config and document, rather than rewriting history.
+    """
+    config=conn.execute('SELECT account_id,target FROM wechat_configs WHERE project_id=? AND version_no=?',
+                        (preview['project_id'],preview['config_version_no'])).fetchone()
+    if config is None:raise DeliveryError('WECHAT_CONFIG_STALE')
+    rows=conn.execute('''SELECT a.*,c.account_id AS bound_account,c.target AS bound_target
+        FROM wechat_attempts a JOIN wechat_previews p ON p.preview_id=a.preview_id
+        JOIN wechat_configs c ON c.project_id=p.project_id AND c.version_no=p.config_version_no
+        WHERE a.project_id=? AND p.document_hash=? ORDER BY a.rowid DESC''',
+        (preview['project_id'],preview['document_hash'])).fetchall()
+    return [row for row in rows if canonical_account(row['bound_account'])==canonical_account(config['account_id'])
+            and row['bound_target']==config['target']]
+
+
 def _existing_attempt(conn, preview, key):
     """Replays keep their original result, even when a newer retry now exists."""
     keyed = conn.execute('SELECT * FROM wechat_request_keys WHERE project_id=? AND idempotency_key=?',
@@ -163,17 +202,18 @@ def _existing_attempt(conn, preview, key):
     exact = conn.execute('''SELECT a.* FROM wechat_preview_attempt_bindings b
                             JOIN wechat_attempts a ON a.attempt_id=b.attempt_id WHERE b.preview_id=?''',
                          (preview['preview_id'],)).fetchone()
+    equivalent=_equivalent_attempts(conn,preview)
     if keyed:
         # Both identities are immutable. Neither may override the other when
         # an explicitly confirmed configuration retry created a newer attempt.
-        if (keyed['document_target_hash'] != preview['document_target_hash'] or
+        if ((keyed['document_target_hash'] != preview['document_target_hash'] and
+             keyed['attempt_id'] not in {row['attempt_id'] for row in equivalent}) or
                 (exact and keyed['attempt_id'] != exact['attempt_id'])):
             raise DeliveryError('WECHAT_IDEMPOTENCY_CONFLICT')
         return conn.execute('SELECT * FROM wechat_attempts WHERE attempt_id=?', (keyed['attempt_id'],)).fetchone()
     if exact:
         return exact
-    latest = conn.execute('SELECT * FROM wechat_attempts WHERE document_target_hash=? ORDER BY sequence_no DESC LIMIT 1',
-                          (preview['document_target_hash'],)).fetchone()
+    latest = equivalent[0] if equivalent else None
     if latest and (preview['config_version_no'] <= latest['config_version_no'] or not _safe_unsent_failure(conn,latest)):
         return latest
     return None
