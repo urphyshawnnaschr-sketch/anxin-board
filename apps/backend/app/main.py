@@ -51,6 +51,8 @@ from app.report_review_durable_read import (
 )
 from app.report_validation_runtime import create_validation_result as create_validation_result_runtime
 from app.report_send_authorization_api import router as report_send_authorization_router
+from app.wechat_delivery_api import router as wechat_delivery_router
+from app.wechat_delivery_store import ensure_wechat_delivery_schema, recover_interrupted_sends
 
 
 # Product default: the explicit project Git connection-check action may show the trusted
@@ -123,6 +125,8 @@ async def lifespan(_: FastAPI):
     project_profile_generation.ensure_profile_generation_schema()
     ensure_project_state_baseline_schema()
     ensure_brownfield_baseline_schema()
+    ensure_wechat_delivery_schema()
+    recover_interrupted_sends()
     configure_local_session_guard(enable_handoff=True)
     try:
         yield
@@ -166,3 +170,4 @@ app.include_router(project_profile_v2_router)
 app.include_router(project_state_baseline_router)
 app.include_router(brownfield_baseline_router)
 app.include_router(brownfield_baseline_report_router)
+app.include_router(wechat_delivery_router)

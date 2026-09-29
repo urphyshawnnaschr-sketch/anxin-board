@@ -92,7 +92,7 @@ try {
     [Environment]::SetEnvironmentVariable('ANXINBOARD_DB_PATH', $testDbPath, 'Process')
     [Environment]::SetEnvironmentVariable('ANXINBOARD_OFFLINE_RESTORE_AUTHORITY', $null, 'Process')
     [Environment]::SetEnvironmentVariable('ANXINBOARD_INSTALLER_TEST_MODE', $null, 'Process')
-    $process = Start-Process -FilePath $runtimeExe -ArgumentList @('--port', "$port") -WorkingDirectory $runtimeDir -PassThru -NoNewWindow
+    $process = Start-Process -FilePath $runtimeExe -ArgumentList @('--port', "$port") -WorkingDirectory $runtimeDir -PassThru -WindowStyle Hidden
 
     Wait-HealthyRuntime -Process $process -Origin $origin
     if (-not (Test-Path -LiteralPath $testDbPath -PathType Leaf)) {
@@ -193,7 +193,7 @@ try {
     if (-not (Test-Path -LiteralPath $testDbPath -PathType Leaf)) { throw 'user restore controller did not recreate the isolated database' }
     if ((Get-Item -LiteralPath $testDbPath).Length -le 0) { throw 'user restore controller recreated an empty database' }
 
-    $process = Start-Process -FilePath $runtimeExe -ArgumentList @('--port', "$port") -WorkingDirectory $runtimeDir -PassThru -NoNewWindow
+    $process = Start-Process -FilePath $runtimeExe -ArgumentList @('--port', "$port") -WorkingDirectory $runtimeDir -PassThru -WindowStyle Hidden
     Wait-HealthyRuntime -Process $process -Origin $origin
 
     Write-Host 'WINDOWS_RUNTIME_SMOKE=SUCCESS'

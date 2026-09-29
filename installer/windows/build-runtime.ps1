@@ -74,6 +74,32 @@ $buildPython = Join-Path $venvDir 'Scripts\python.exe'
 & $buildPython -m pip install --disable-pip-version-check -r $requirements -r $buildRequirements
 if ($LASTEXITCODE -ne 0) { throw "packaging dependencies failed with exit code $LASTEXITCODE" }
 
+# Stage the exact browser outside site-packages. Its short explicit PyInstaller
+# destination stays below Windows MAX_PATH even under versions/<64-char digest>.
+# Neither build nor runtime depends on a user browser or global browser cache.
+$browserInstallRoot = Join-Path $OutputRoot 'build-browser'
+$previousBrowserPath = [Environment]::GetEnvironmentVariable('PLAYWRIGHT_BROWSERS_PATH', 'Process')
+try {
+    $env:PLAYWRIGHT_BROWSERS_PATH = $browserInstallRoot
+    & $buildPython -m playwright install --only-shell chromium
+    if ($LASTEXITCODE -ne 0) { throw "bundled screenshot browser installation failed with exit code $LASTEXITCODE" }
+}
+finally {
+    [Environment]::SetEnvironmentVariable('PLAYWRIGHT_BROWSERS_PATH', $previousBrowserPath, 'Process')
+}
+$playwrightPackage = (& $buildPython -c "import pathlib, playwright; print(pathlib.Path(playwright.__file__).resolve().parent / 'driver' / 'package')").Trim()
+if ($LASTEXITCODE -ne 0) { throw 'Unable to locate the pinned Playwright package.' }
+$sourceBrowserManifest = Get-Content -LiteralPath (Join-Path $playwrightPackage 'browsers.json') -Raw -Encoding utf8 | ConvertFrom-Json
+$sourceHeadless = @($sourceBrowserManifest.browsers | Where-Object { $_.name -eq 'chromium-headless-shell' })
+if ($sourceHeadless.Count -ne 1 -or [string]$sourceHeadless[0].revision -notmatch '^\d+$') {
+    throw 'pinned screenshot browser revision is invalid'
+}
+$sourceRevision = [string]$sourceHeadless[0].revision
+$headlessFiles = Join-Path $browserInstallRoot ('chromium_headless_shell-' + $sourceRevision + '\chrome-headless-shell-win64')
+if (-not (Test-Path -LiteralPath (Join-Path $headlessFiles 'chrome-headless-shell.exe') -PathType Leaf)) {
+    throw 'downloaded screenshot browser executable is missing'
+}
+
 Write-Host '[3/6] Building standalone onedir runtime...'
 New-Item -ItemType Directory -Path $workDir, $specDir, $payloadDir | Out-Null
 & $buildPython -m PyInstaller `
@@ -81,6 +107,8 @@ New-Item -ItemType Directory -Path $workDir, $specDir, $payloadDir | Out-Null
     --clean `
     --onedir `
     --name 'AnxinBoard.Runtime' `
+    --collect-all playwright `
+    --add-data ($headlessFiles + ';report-browser/' + $sourceRevision) `
     --paths $backendDir `
     --distpath $payloadDir `
     --workpath $workDir `
@@ -91,6 +119,18 @@ if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed with exit code $LASTEXITCOD
 $runtimeDir = Join-Path $payloadDir 'AnxinBoard.Runtime'
 $runtimeExe = Join-Path $runtimeDir 'AnxinBoard.Runtime.exe'
 if (-not (Test-Path $runtimeExe -PathType Leaf)) { throw 'packaged runtime executable is missing' }
+$browserPackage = Join-Path $runtimeDir '_internal\playwright\driver\package'
+$browserManifest = Get-Content -LiteralPath (Join-Path $browserPackage 'browsers.json') -Raw -Encoding utf8 | ConvertFrom-Json
+$headlessRevision = @($browserManifest.browsers | Where-Object { $_.name -eq 'chromium-headless-shell' })
+if ($headlessRevision.Count -ne 1 -or [string]$headlessRevision[0].revision -notmatch '^\d+$') {
+    throw 'packaged screenshot browser revision is invalid'
+}
+$headlessRoot = Join-Path $runtimeDir ('_internal\report-browser\' + [string]$headlessRevision[0].revision)
+$headlessExe = Join-Path $headlessRoot 'chrome-headless-shell.exe'
+if (-not (Test-Path -LiteralPath $headlessExe -PathType Leaf)) { throw 'packaged screenshot browser executable is missing' }
+if (-not (Test-Path -LiteralPath (Join-Path $runtimeDir '_internal\playwright\driver\node.exe') -PathType Leaf)) {
+    throw 'packaged screenshot browser driver is missing'
+}
 
 Write-Host '[4/6] Attaching built UI beside runtime...'
 $uiDir = Join-Path $runtimeDir 'ui'

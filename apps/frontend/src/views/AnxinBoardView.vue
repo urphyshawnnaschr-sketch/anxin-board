@@ -11,6 +11,7 @@ import { createModuleNarrativeLoader } from '../api/approvedModuleNarrative.js'
 import { createReportGitMetricsLoader, getApprovedReportGitMetrics } from '../api/approvedReportGitMetrics.js'
 import { getProject } from '../api/projects.js'
 import MailSendPanel from '../components/MailSendPanel.vue'
+import WechatSendPanel from '../components/WechatSendPanel.vue'
 
 const props = defineProps({
   projectId: {
@@ -559,6 +560,15 @@ watch(() => props.projectId, (id) => loadBoard(id))
 </script>
 
 <template>
+  <WechatSendPanel
+    v-if="projectId != null"
+    :project-id="projectId"
+    :displayed-report-version-id="boardVisible ? boardReport.report_version_id : null"
+    :displayed-report-hash="boardVisible ? boardReport.anxin_board_report_hash : null"
+    :module-narrative-state="moduleNarrative.state"
+    :displayed-module-narrative-hash="moduleNarrative.value?.module_narrative_hash ?? null"
+    :displayed-git-metrics-state="gitMetrics.state"
+  />
   <MailSendPanel
     v-if="projectId != null"
     :project-id="projectId"

@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><title>微信发送合成验收</title><div id="panel"></div>
+<script type="module">
+import { createApp, h, reactive } from 'vue'
+import Panel from '../../../src/components/WechatSendPanel.vue'
+window.wechatTestProps = reactive(window.wechatInitialProps)
+createApp({ render: () => h(Panel, window.wechatTestProps) }).mount('#panel')
+</script></html>

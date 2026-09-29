@@ -1,6 +1,6 @@
 """Safe user-facing offline restore guard for AnxinBoard.
 
-A database backup can contain durable records for model/provider calls and email sends.
+A database backup can contain durable records for model/provider calls, email and WeChat sends.
 Those external effects cannot be undone by restoring an older SQLite file. Therefore a
 normal user restore is allowed only when it cannot make the current product forget any
 already-recorded external-effect authority. The caller must also hold the accepted
@@ -30,7 +30,7 @@ from app.product_backup import (
 RESTORE_AUTHORITY_ENV: Final[str] = "ANXINBOARD_OFFLINE_RESTORE_AUTHORITY"
 RESTORE_AUTHORITY_VALUE: Final[str] = "launcher-lock-held-v1"
 
-# These tables are durable memory that can prevent a repeated paid/provider or mail side
+# These tables are durable memory that can prevent a repeated provider, mail or WeChat side
 # effect. Coordination-only process leases and short-lived in-memory Human permits are
 # intentionally excluded: restore is offline and the lifecycle lock excludes a live
 # process. Equality is deliberately conservative for V1. If current durable effect
@@ -48,6 +48,13 @@ _EXTERNAL_EFFECT_TABLES: Final[tuple[str, ...]] = (
     "mail_durable_admissions",
     "mail_send_attempts",
     "mail_send_recipient_results",
+    "wechat_configs",
+    "wechat_previews",
+    "wechat_preview_images",
+    "wechat_attempts",
+    "wechat_attempt_pages",
+    "wechat_request_keys",
+    "wechat_preview_attempt_bindings",
 )
 _SQLITE_SIDECARS: Final[tuple[str, ...]] = (
     "anxinboard.db-wal",
@@ -225,7 +232,7 @@ def assert_restore_preserves_external_effect_authority(
 
     if candidate_projection != current_projection:
         raise ProductRestoreExternalAuthorityRollbackError(
-            "backup would change durable model/mail external-effect authority"
+            "backup would change durable model/mail/WeChat external-effect authority"
         )
 
     # Re-read immediately before mutation. The accepted Windows caller holds the launcher

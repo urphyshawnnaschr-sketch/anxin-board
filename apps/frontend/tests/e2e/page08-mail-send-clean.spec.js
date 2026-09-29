@@ -60,6 +60,10 @@ const reportV1 = {
 }
 
 async function routeCommon(page, reportBody) {
+  await page.route('**/api/projects/1/wechat-settings', route => route.fulfill({
+    json: { configured: false, version_no: 0, token_configured: false }
+  }))
+  await page.route('**/api/projects/1/wechat-history', route => route.fulfill({ json: [] }))
   await page.route('**/api/projects/1', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
