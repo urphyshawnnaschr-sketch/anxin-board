@@ -107,6 +107,41 @@ def test_empty_long_poll_may_omit_messages_and_preserves_cursor():
     assert len(calls) == 1
 
 
+@pytest.mark.parametrize('body,expected_cursor,expected_messages', [
+    ({'get_updates_buf': 'c' * 96, 'msgs': []}, 'c' * 96, []),
+    ({'get_updates_buf': 'cursor-2'}, 'cursor-2', []),
+    ({'msgs': []}, 'cursor-1', []),
+    ({'msgs': [{'from_user_id': OWNER, 'message_type': 1, 'context_token': CONTEXT}]},
+     'cursor-1', [{'from_user_id': OWNER, 'message_type': 1, 'context_token': CONTEXT}]),
+], ids=['observed-empty-shape', 'cursor-only', 'messages-only', 'owner-context'])
+def test_updates_optional_ret_accepts_only_recognizable_valid_update_structure(body, expected_cursor, expected_messages):
+    client, calls = client_for(httpx.Response(200, json=body))
+    assert client.get_updates(base_url=BASE, token=TOKEN, cursor='cursor-1') == {
+        'cursor': expected_cursor, 'messages': expected_messages,
+    }
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize('body,code', [
+    ({}, 'ILINK_RESPONSE_UNVERIFIED'),
+    ({'longpolling_timeout_ms': 35000}, 'ILINK_RESPONSE_UNVERIFIED'),
+    ({'errcode': 0}, 'ILINK_RESPONSE_UNVERIFIED'),
+    ({'msgs': None}, 'ILINK_RESPONSE_UNVERIFIED'),
+    ({'msgs': [], 'get_updates_buf': None}, 'ILINK_RESPONSE_UNVERIFIED'),
+    ({'msgs': [], 'ret': None}, 'ILINK_RESPONSE_UNVERIFIED'),
+    ({'msgs': [], 'ret': '0'}, 'ILINK_RESPONSE_UNVERIFIED'),
+    ({'msgs': [], 'ret': False}, 'ILINK_RESPONSE_UNVERIFIED'),
+    ({'msgs': [], 'ret': 1}, 'ILINK_REQUEST_REJECTED'),
+    ({'msgs': [], 'errcode': -14}, 'ILINK_SESSION_EXPIRED'),
+    ({'msgs': [], 'errcode': False}, 'ILINK_RESPONSE_UNVERIFIED'),
+])
+def test_updates_optional_ret_never_overrides_errors_or_accepts_unverified_structure(body, code):
+    client, calls = client_for(httpx.Response(200, json=body))
+    with pytest.raises(module().IlinkError) as caught:
+        client.get_updates(base_url=BASE, token=TOKEN, cursor='cursor-1')
+    assert caught.value.code == code and len(calls) == 1
+
+
 @pytest.mark.parametrize('endpoint', ['qr', 'updates'])
 def test_idle_long_poll_timeout_keeps_session_and_cursor_without_internal_retry(endpoint):
     def timeout(request):
@@ -345,6 +380,41 @@ def test_ret_zero_without_server_id_uses_safe_client_id_once():
         return httpx.Response(200, json={'ret': 0})
     result = send(module().IlinkClient(transport=httpx.MockTransport(handle)))
     assert result.state == 'accepted' and result.message_id.startswith('anxin-') and count == 3
+
+
+@pytest.mark.parametrize('body,state,code', [
+    ({'message_id': '18446744073709551614'}, 'accepted', 'ILINK_ACCEPTED'),
+    ({'message_id': 1}, 'accepted', 'ILINK_ACCEPTED'),
+    ({'message_id': '1', 'errcode': 0}, 'accepted', 'ILINK_ACCEPTED'),
+    ({}, 'unknown', 'ILINK_RESPONSE_UNVERIFIED'),
+    ({'errcode': 0}, 'unknown', 'ILINK_RESPONSE_UNVERIFIED'),
+    ({'message_id': None}, 'unknown', 'ILINK_RESPONSE_UNVERIFIED'),
+    ({'message_id': ''}, 'unknown', 'ILINK_RESPONSE_UNVERIFIED'),
+    ({'message_id': '0'}, 'unknown', 'ILINK_RESPONSE_UNVERIFIED'),
+    ({'message_id': '18446744073709551616'}, 'unknown', 'ILINK_RESPONSE_UNVERIFIED'),
+    ({'message_id': True}, 'unknown', 'ILINK_RESPONSE_UNVERIFIED'),
+    ({'message_id': 'synthetic-invalid'}, 'unknown', 'ILINK_RESPONSE_UNVERIFIED'),
+    ({'message_id': '1', 'ret': None}, 'unknown', 'ILINK_RESPONSE_UNVERIFIED'),
+    ({'message_id': '1', 'ret': '0'}, 'unknown', 'ILINK_RESPONSE_UNVERIFIED'),
+    ({'message_id': '1', 'ret': False}, 'unknown', 'ILINK_RESPONSE_UNVERIFIED'),
+    ({'message_id': '1', 'ret': 1}, 'rejected', 'ILINK_REQUEST_REJECTED'),
+    ({'message_id': '1', 'ret': -14}, 'rejected', 'ILINK_SESSION_EXPIRED'),
+    ({'message_id': '1', 'errcode': -14}, 'rejected', 'ILINK_SESSION_EXPIRED'),
+])
+def test_send_optional_ret_requires_explicit_valid_server_id_and_preserves_error_priority(body, state, code):
+    calls = []
+    def handle(request):
+        calls.append(request)
+        if len(calls) == 1:
+            return httpx.Response(200, json={'upload_param': 'synthetic-param'})
+        if len(calls) == 2:
+            return httpx.Response(200, headers={'x-encrypted-param': 'synthetic-download'})
+        return httpx.Response(200, json=body)
+    result = send(module().IlinkClient(transport=httpx.MockTransport(handle)))
+    assert (result.state, result.code) == (state, code)
+    if state == 'accepted':
+        assert result.message_id == str(body['message_id'])
+    assert len(calls) == 3 and TOKEN not in repr(result) and CONTEXT not in repr(result)
 
 
 def test_input_rejection_occurs_before_upload():

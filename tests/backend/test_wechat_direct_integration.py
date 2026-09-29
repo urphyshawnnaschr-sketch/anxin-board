@@ -34,7 +34,8 @@ def test_qr_owner_context_and_real_formal_pngs_are_sent_once(binding, wechat_cli
                 'ilink_bot_id':'abcdef@im.bot','baseurl':'https://ilinkai.weixin.qq.com',
                 'ilink_user_id':'owner@im.wechat'})
         if path == '/ilink/bot/getupdates':
-            return httpx.Response(200, json={'ret':0,'get_updates_buf':'synthetic-direct-cursor','msgs':[
+            # Successful protobuf JSON may omit its zero-valued ret field.
+            return httpx.Response(200, json={'get_updates_buf':'synthetic-direct-cursor','msgs':[
                 {'from_user_id':'other@im.wechat','message_type':1,'context_token':'synthetic-wrong-context'},
                 {'from_user_id':'owner@im.wechat','message_type':1,'context_token':'synthetic-direct-context'},
             ]})
@@ -63,7 +64,7 @@ def test_qr_owner_context_and_real_formal_pngs_are_sent_once(binding, wechat_cli
             media = msg['item_list'][0]['image_item']['media']
             assert base64.b64decode(media['aes_key']).decode('ascii') == uploads[-1]['aeskey']
             submitted.append(msg)
-            return httpx.Response(200, json={'ret':0,'message_id':str(len(submitted))})
+            return httpx.Response(200, json={'message_id':str(len(submitted))})
         raise AssertionError('unexpected synthetic API path: ' + path)
 
     ilink = wechat_ilink.IlinkClient(transport=httpx.MockTransport(transport))

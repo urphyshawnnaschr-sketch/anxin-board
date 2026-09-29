@@ -247,7 +247,12 @@ class IlinkClient:
             if error.code == 'ILINK_TIMEOUT':
                 return {'cursor': cursor, 'messages': []}
             raise
-        _check_result(body, require_ret=True)
+        # GetUpdatesResp.ret is optional in the official proto JSON contract.
+        # Without it, require an update field whose type/bounds we validate below;
+        # an empty or unrelated JSON object is not a verified poll response.
+        _check_result(body)
+        if 'ret' not in body and not {'msgs', 'get_updates_buf'} & body.keys():
+            raise IlinkError('ILINK_RESPONSE_UNVERIFIED')
         next_cursor = body.get('get_updates_buf', cursor)
         # The official GetUpdatesResp makes msgs optional for an empty poll.
         # A present null or malformed value is still not a valid message list.
@@ -330,7 +335,9 @@ class IlinkClient:
         }, 'base_info': dict(_BASE_INFO)}
         try:
             body = self._api('sendmessage', base_url=base, token=token, payload=payload)
-            _check_result(body, require_ret=True)
+            # The official response can omit zero-valued ret. In that case only
+            # a valid server message_id below confirms acceptance; {} stays unknown.
+            _check_result(body, require_ret='message_id' not in body)
             message_id = body.get('message_id', client_id)
             if type(message_id) is int and 0 < message_id < 2**64:
                 message_id = str(message_id)

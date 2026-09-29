@@ -63,7 +63,7 @@ jobs:
       - name: Run complete offline backend suite
         shell: pwsh
         run: |
-          $baseTemp = Join-Path $env:ANXINBOARD_CI_ROOT 'pytest'
+          $baseTemp = Join-Path $env:TEMP 'pytest'
           python -E -X utf8 -m pytest tests/backend -q -ra --basetemp="$baseTemp" --junitxml=backend-junit.xml
       - name: Preserve backend test result
         if: always()
