@@ -49,6 +49,17 @@ jobs:
       - name: Install pinned backend dependencies
         shell: pwsh
         run: python -m pip install --disable-pip-version-check -r apps/backend/requirements.txt
+      - name: Install package-local report screenshot browser
+        shell: pwsh
+        run: |
+          $previousBrowserPath = $env:PLAYWRIGHT_BROWSERS_PATH
+          try {
+            $env:PLAYWRIGHT_BROWSERS_PATH = '0'
+            python -m playwright install chromium --only-shell
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } finally {
+            $env:PLAYWRIGHT_BROWSERS_PATH = $previousBrowserPath
+          }
       - name: Run complete offline backend suite
         shell: pwsh
         run: |

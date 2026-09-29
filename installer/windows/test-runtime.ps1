@@ -52,10 +52,27 @@ $oldLocalApp = [Environment]::GetEnvironmentVariable('LOCALAPPDATA', 'Process')
 $oldDbPath = [Environment]::GetEnvironmentVariable('ANXINBOARD_DB_PATH', 'Process')
 $oldRestoreAuthority = [Environment]::GetEnvironmentVariable('ANXINBOARD_OFFLINE_RESTORE_AUTHORITY', 'Process')
 $oldInstallerTestMode = [Environment]::GetEnvironmentVariable('ANXINBOARD_INSTALLER_TEST_MODE', 'Process')
-$testLocalApp = Join-Path $env:TEMP ('anxin-runtime-smoke-localapp-' + [Guid]::NewGuid().ToString('N'))
+# Keep the disposable install shallow: PyInstaller's native DLL discovery can hit
+# Windows path limits after the versions/<digest> layout is appended. Preserve the
+# full random identity and installed version layout, but spend no path budget on labels.
+$testLocalApp = Join-Path $env:TEMP ([Guid]::NewGuid().ToString('N'))
 $testDataRoot = Join-Path $testLocalApp 'AnxinBoard'
 $testDbPath = Join-Path $testDataRoot 'anxinboard.db'
-$testInstallRoot = Join-Path $testLocalApp 'installed-product'
+$testInstallRoot = Join-Path $testLocalApp 'i'
+$payloadDigest = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$versionRoot = Join-Path (Join-Path $testInstallRoot 'versions') $payloadDigest
+$installedRuntimeDir = Join-Path $versionRoot 'AnxinBoard.Runtime'
+$longestNativePath = 0
+foreach ($entry in @($manifest.files)) {
+    if ([string]$entry.path -match '\.(exe|dll|pyd)$') {
+        $installedPath = [System.IO.Path]::GetFullPath((Join-Path $installedRuntimeDir ([string]$entry.path).Replace('/', '\')))
+        $longestNativePath = [Math]::Max($longestNativePath, $installedPath.Length)
+    }
+}
+if ($longestNativePath -gt 240) {
+    throw "Smoke native paths exceed the 240-character budget ($longestNativePath). Set TEMP to a shorter isolated directory."
+}
+Write-Host "SMOKE_NATIVE_PATH_MAX=$longestNativePath"
 New-Item -ItemType Directory -Path $testLocalApp | Out-Null
 $process = $null
 $backupPath = Join-Path $testLocalApp 'downloaded-product-backup.zip'
@@ -169,8 +186,6 @@ try {
     [System.IO.File]::Delete($testDbPath)
     if (Test-Path -LiteralPath $testDbPath) { throw 'isolated product database could not be removed before restore smoke' }
 
-    $payloadDigest = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
-    $versionRoot = Join-Path (Join-Path $testInstallRoot 'versions') $payloadDigest
     New-Item -ItemType Directory -Path $versionRoot -Force | Out-Null
     Copy-Item -LiteralPath $runtimeDir -Destination $versionRoot -Recurse -Force
     Copy-Item -LiteralPath $manifestPath -Destination (Join-Path $versionRoot 'runtime-manifest.json') -Force
