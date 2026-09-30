@@ -128,6 +128,48 @@ def test_stop_interrupts_stalled_read():
     finally:k.CloseHandle(h);server.stop()
 
 
+def _canonical_dacl_sddl(value):
+    """Use Windows' SID spelling while preserving the complete DACL contract."""
+    native=handoff._WinApi()
+    convert=native.a.ConvertSecurityDescriptorToStringSecurityDescriptorW
+    convert.argtypes=[w.LPVOID,w.DWORD,w.DWORD,ctypes.POINTER(w.LPWSTR),w.LPVOID]
+    convert.restype=w.BOOL
+    descriptor=w.LPVOID();text=w.LPWSTR()
+    try:
+        assert native.a.ConvertStringSecurityDescriptorToSecurityDescriptorW(value,1,ctypes.byref(descriptor),None)
+        assert convert(descriptor,1,4,ctypes.byref(text),None)
+        return text.value
+    finally:
+        if text:native.k.LocalFree(ctypes.cast(text,w.LPVOID))
+        if descriptor:native.k.LocalFree(descriptor)
+
+
+def test_acl_canonicalization_accepts_exact_local_administrator_sid_alias():
+    # Hosted Windows may serialize the current RID-500 SID as LA. Obtain the
+    # numeric form natively so this regression also runs under ordinary users.
+    native=handoff._WinApi()
+    native.a.ConvertStringSidToSidW.argtypes=[w.LPCWSTR,ctypes.POINTER(w.LPVOID)]
+    native.a.ConvertStringSidToSidW.restype=w.BOOL
+    sid=w.LPVOID();numeric=w.LPWSTR()
+    try:
+        assert native.a.ConvertStringSidToSidW('LA',ctypes.byref(sid))
+        assert native.a.ConvertSidToStringSidW(sid,ctypes.byref(numeric))
+        assert _canonical_dacl_sddl('D:P(A;;FA;;;'+numeric.value+')')=='D:P(A;;FA;;;LA)'
+    finally:
+        if numeric:native.k.LocalFree(ctypes.cast(numeric,w.LPVOID))
+        if sid:native.k.LocalFree(sid)
+
+
+@pytest.mark.parametrize('different',[
+    'D:(A;;FA;;;LA)',  # inherited permissions are no longer blocked
+    'D:P(A;;FA;;;LA)(A;;FA;;;BA)',  # an additional trustee
+    'D:P(A;;FR;;;LA)',  # a different access mask
+    'D:P(A;;FA;;;BA)',  # Administrators group is not the current user's SID
+])
+def test_acl_canonicalization_does_not_weaken_descriptor_equality(different):
+    assert _canonical_dacl_sddl(different)!=_canonical_dacl_sddl('D:P(A;;FA;;;LA)')
+
+
 def test_actual_pipe_acl_is_protected_current_user_only():
     server=handoff.start_handoff_server(lambda:"synthetic")
     a=ctypes.WinDLL("advapi32",use_last_error=True)
@@ -139,7 +181,8 @@ def test_actual_pipe_acl_is_protected_current_user_only():
     try:
         assert a.GetSecurityInfo(server._handle,6,4,None,None,None,None,ctypes.byref(descriptor))==0
         assert a.ConvertSecurityDescriptorToStringSecurityDescriptorW(descriptor,1,4,ctypes.byref(text),None)
-        assert text.value=="D:P(A;;FA;;;"+server._api.current_sid()+")"
+        expected=_canonical_dacl_sddl("D:P(A;;FA;;;"+server._api.current_sid()+")")
+        assert text.value==expected
     finally:
         if text:server._api.k.LocalFree(ctypes.cast(text,w.LPVOID))
         if descriptor:server._api.k.LocalFree(descriptor)
